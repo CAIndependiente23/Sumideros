@@ -41,7 +41,7 @@ th { background: #eee; }
 
 <h1>Control Pluvial</h1>
 
-<input type="text" id="buscador" placeholder="Buscar dirección...">
+<input type="text" id="buscador" placeholder="Buscar...">
 
 <h2>Resumen por empresa</h2>
 <div id="resumen"></div>
@@ -56,20 +56,24 @@ th { background: #eee; }
 
 <script>
 
-// 🔗 TU GOOGLE SHEET EN CSV
+// 🔗 Google Sheets en CSV
 const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJbRj1s7RKeC5xv-ag/export?format=csv&gid=0";
 
 let datosGlobal = [];
 
-Papa.parse(url, {
-  download: true,
-  header: true,
-  complete: function(results) {
-    datosGlobal = results.data;
+// 📥 Cargar datos
+fetch(url)
+  .then(response => response.text())
+  .then(csv => {
+    const results = Papa.parse(csv, { header: true });
+    datosGlobal = results.data.filter(d => Object.keys(d).length > 1); // limpia filas vacías
+
     generarTabla(datosGlobal);
     generarResumen(datosGlobal);
-  }
-});
+  })
+  .catch(error => {
+    console.error("Error cargando CSV:", error);
+  });
 
 // 🔍 Buscador
 document.getElementById("buscador").addEventListener("input", e => {
@@ -84,7 +88,7 @@ document.getElementById("buscador").addEventListener("input", e => {
   generarTabla(filtrados);
 });
 
-// 📊 Tabla dinámica
+// 📊 Tabla
 function generarTabla(data) {
   const tabla = document.getElementById("tabla");
   const headers = document.getElementById("headers");
@@ -99,6 +103,7 @@ function generarTabla(data) {
     headers.innerHTML += `<th>${k}</th>`;
   });
 
+  // filas
   data.forEach(d => {
     let row = "<tr>";
 
@@ -116,7 +121,7 @@ function generarResumen(data) {
   const resumen = {};
 
   data.forEach(d => {
-    const empresa = d.empresa || d.Empresa;
+    const empresa = d.empresa || d.Empresa || "Sin empresa";
 
     const total = Number(d.cantidad_total || d.total || 0);
     const ejecutado = Number(d.cantidad_ejecutada || d.ejecutado || 0);
@@ -133,7 +138,6 @@ function generarResumen(data) {
 
   for (let emp in resumen) {
     const r = resumen[emp];
-
     if (r.total === 0) continue;
 
     const porcentaje = (r.ejecutado / r.total) * 100;
@@ -154,5 +158,3 @@ function generarResumen(data) {
 
 </body>
 </html>
-
-<!-- update -->
