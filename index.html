@@ -41,7 +41,7 @@ th { background: #eee; }
 
 <h1>Control Pluvial</h1>
 
-<input type="text" id="buscador" placeholder="Buscar...">
+<input type="text" id="buscador" placeholder="Buscar por calle...">
 
 <h2>Resumen por empresa</h2>
 <div id="resumen"></div>
@@ -56,7 +56,7 @@ th { background: #eee; }
 
 <script>
 
-// 🔗 Google Sheets en CSV
+// 🔗 Google Sheets CSV
 const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJbRj1s7RKeC5xv-ag/export?format=csv&gid=0";
 
 let datosGlobal = [];
@@ -66,26 +66,28 @@ fetch(url)
   .then(response => response.text())
   .then(csv => {
     const results = Papa.parse(csv, { header: true });
-    datosGlobal = results.data.filter(d => Object.keys(d).length > 1); // limpia filas vacías
+    datosGlobal = results.data.filter(d => Object.keys(d).length > 1);
 
     generarTabla(datosGlobal);
     generarResumen(datosGlobal);
   })
-  .catch(error => {
-    console.error("Error cargando CSV:", error);
-  });
+  .catch(error => console.error("Error:", error));
 
-// 🔍 Buscador
+// 🔍 Buscador optimizado
+let timeout;
+
 document.getElementById("buscador").addEventListener("input", e => {
-  const texto = e.target.value.toLowerCase();
+  clearTimeout(timeout);
 
-  const filtrados = datosGlobal.filter(d =>
-    Object.values(d).some(v =>
-      String(v).toLowerCase().includes(texto)
-    )
-  );
+  timeout = setTimeout(() => {
+    const texto = e.target.value.toLowerCase();
 
-  generarTabla(filtrados);
+    const filtrados = datosGlobal.filter(d =>
+      (d.calle || d.Calle || "").toLowerCase().includes(texto)
+    );
+
+    generarTabla(filtrados.slice(0, 200)); // limita filas
+  }, 300);
 });
 
 // 📊 Tabla
@@ -98,12 +100,10 @@ function generarTabla(data) {
 
   if (data.length === 0) return;
 
-  // headers dinámicos
   Object.keys(data[0]).forEach(k => {
     headers.innerHTML += `<th>${k}</th>`;
   });
 
-  // filas
   data.forEach(d => {
     let row = "<tr>";
 
@@ -116,37 +116,51 @@ function generarTabla(data) {
   });
 }
 
-// 📈 Resumen por empresa
+// 📈 Dashboard por empresa
 function generarResumen(data) {
   const resumen = {};
 
   data.forEach(d => {
-    const empresa = d.empresa || d.Empresa || "Sin empresa";
-
-    const total = Number(d.cantidad_total || d.total || 0);
-    const ejecutado = Number(d.cantidad_ejecutada || d.ejecutado || 0);
+    const empresa = d["Empresa"] || "Sin empresa";
+    const estado = (d["Estado Sumidero"] || "").toLowerCase();
 
     if (!resumen[empresa]) {
-      resumen[empresa] = { total: 0, ejecutado: 0 };
+      resumen[empresa] = {
+        limpios: 0,
+        cod28: 0,
+        total: 0
+      };
     }
 
-    resumen[empresa].total += total;
-    resumen[empresa].ejecutado += ejecutado;
+    if (estado.includes("limpio")) {
+      resumen[empresa].limpios++;
+    }
+
+    if (estado.includes("28")) {
+      resumen[empresa].cod28++;
+    }
+
+    resumen[empresa].total++;
   });
 
   let html = "";
 
   for (let emp in resumen) {
     const r = resumen[emp];
-    if (r.total === 0) continue;
 
-    const porcentaje = (r.ejecutado / r.total) * 100;
+    const porcentaje = r.total > 0
+      ? (r.limpios / r.total) * 100
+      : 0;
+
+    const clase = porcentaje >= 80 ? "ok" : "bad";
 
     html += `
-      <div class="card ${porcentaje >= 100 ? 'ok' : 'bad'}">
-        <b>${emp}</b><br>
-        ${porcentaje.toFixed(1)}%<br>
-        ${r.ejecutado} / ${r.total}
+      <div class="card ${clase}">
+        <b>${emp}</b><br><br>
+        🟢 Limpios: ${r.limpios}<br>
+        🔴 Cod. 28: ${r.cod28}<br>
+        📊 Total: ${r.total}<br>
+        📈 % Limpios: ${porcentaje.toFixed(1)}%
       </div>
     `;
   }
