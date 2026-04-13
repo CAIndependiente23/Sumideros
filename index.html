@@ -61,17 +61,40 @@ const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJ
 
 let datosGlobal = [];
 
+// 🔍 columnas detectadas automáticamente
+let colEmpresa = null;
+let colEstado = null;
+let colCalle = null;
+
 // 📥 Cargar datos
 fetch(url)
   .then(response => response.text())
   .then(csv => {
     const results = Papa.parse(csv, { header: true });
+
     datosGlobal = results.data.filter(d => Object.keys(d).length > 1);
 
-    generarTabla(datosGlobal);
+    detectarColumnas(datosGlobal[0]);
+
+    generarTabla(datosGlobal.slice(0, 200)); // carga inicial liviana
     generarResumen(datosGlobal);
   })
-  .catch(error => console.error("Error:", error));
+  .catch(error => console.error("Error cargando CSV:", error));
+
+// 🧠 Detectar nombres reales de columnas
+function detectarColumnas(fila) {
+  const columnas = Object.keys(fila);
+
+  columnas.forEach(c => {
+    const nombre = c.toLowerCase();
+
+    if (nombre.includes("empresa")) colEmpresa = c;
+    if (nombre.includes("estado")) colEstado = c;
+    if (nombre.includes("calle")) colCalle = c;
+  });
+
+  console.log("Columnas detectadas:", colEmpresa, colEstado, colCalle);
+}
 
 // 🔍 Buscador optimizado
 let timeout;
@@ -83,10 +106,10 @@ document.getElementById("buscador").addEventListener("input", e => {
     const texto = e.target.value.toLowerCase();
 
     const filtrados = datosGlobal.filter(d =>
-      (d.calle || d.Calle || "").toLowerCase().includes(texto)
+      String(d[colCalle] || "").toLowerCase().includes(texto)
     );
 
-    generarTabla(filtrados.slice(0, 200)); // limita filas
+    generarTabla(filtrados.slice(0, 200)); // limita para evitar freeze
   }, 300);
 });
 
@@ -121,24 +144,15 @@ function generarResumen(data) {
   const resumen = {};
 
   data.forEach(d => {
-    const empresa = d["Empresa"] || "Sin empresa";
-    const estado = (d["Estado Sumidero"] || "").toLowerCase();
+    const empresa = d[colEmpresa] || "Sin empresa";
+    const estado = String(d[colEstado] || "").toLowerCase();
 
     if (!resumen[empresa]) {
-      resumen[empresa] = {
-        limpios: 0,
-        cod28: 0,
-        total: 0
-      };
+      resumen[empresa] = { limpios: 0, cod28: 0, total: 0 };
     }
 
-    if (estado.includes("limpio")) {
-      resumen[empresa].limpios++;
-    }
-
-    if (estado.includes("28")) {
-      resumen[empresa].cod28++;
-    }
+    if (estado.includes("limpio")) resumen[empresa].limpios++;
+    if (estado.includes("28")) resumen[empresa].cod28++;
 
     resumen[empresa].total++;
   });
