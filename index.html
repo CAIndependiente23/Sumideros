@@ -5,6 +5,7 @@
 <title>Dashboard Pluvial</title>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body { font-family: Arial; margin: 20px; }
@@ -31,6 +32,11 @@ th, td {
 }
 
 th { background: #eee; }
+
+canvas {
+  margin-top: 20px;
+  max-width: 100%;
+}
 </style>
 </head>
 
@@ -38,7 +44,7 @@ th { background: #eee; }
 
 <h1>Control Pluvial</h1>
 
-<!-- 🔽 FILTRO EMPRESA -->
+<!-- FILTRO EMPRESA -->
 <label>Filtrar por empresa:</label>
 <select id="filtroEmpresa">
   <option value="">Todas</option>
@@ -56,6 +62,9 @@ th { background: #eee; }
 <h2>Resumen por empresa</h2>
 <div id="resumen">Cargando...</div>
 
+<h2>Gráfico</h2>
+<canvas id="grafico"></canvas>
+
 <h2>Elementos</h2>
 <table>
 <thead><tr id="headers"></tr></thead>
@@ -68,10 +77,11 @@ const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJ
 
 let datosGlobal = [];
 let empresaActual = "";
+let chart;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// 📥 Cargar datos
+// 📥 cargar datos
 fetch(url)
 .then(r => r.text())
 .then(csv => {
@@ -91,15 +101,12 @@ document.getElementById("filtroEmpresa").addEventListener("change", e => {
 // 🔍 buscador
 let timeout;
 
-document.getElementById("buscador").addEventListener("input", e => {
+document.getElementById("buscador").addEventListener("input", () => {
   clearTimeout(timeout);
-
-  timeout = setTimeout(() => {
-    actualizarVista();
-  }, 300);
+  timeout = setTimeout(() => actualizarVista(), 300);
 });
 
-// 🔥 función central
+// 🔥 FUNCIÓN CENTRAL
 function actualizarVista(){
   let data = datosGlobal;
 
@@ -108,7 +115,7 @@ function actualizarVista(){
     data = data.filter(d => d["Empresa"] === empresaActual);
   }
 
-  // filtro buscador
+  // buscador
   const texto = document.getElementById("buscador").value.toLowerCase();
 
   if (texto) {
@@ -118,10 +125,11 @@ function actualizarVista(){
   }
 
   generarResumen(data);
+  generarGrafico(data);
   generarTabla(data.slice(0, 100));
 }
 
-// 📊 tabla
+// 📊 TABLA
 function generarTabla(data){
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
@@ -143,7 +151,7 @@ function generarTabla(data){
   });
 }
 
-// 📈 resumen dinámico
+// 📈 RESUMEN
 function generarResumen(data){
   const r = {};
 
@@ -180,6 +188,61 @@ function generarResumen(data){
   });
 
   document.getElementById("resumen").innerHTML = html;
+}
+
+// 📊 GRAFICO APILADO
+function generarGrafico(data){
+
+  const agrupado = {};
+
+  data.forEach(d => {
+    const emp = (d["Empresa"] || "").trim();
+    const est = (d["Estado Sumidero"] || "").trim();
+
+    if (!emp) return;
+
+    if (!agrupado[emp]) {
+      agrupado[emp] = { limpio: 0, c28: 0 };
+    }
+
+    if (est === "Limpio") agrupado[emp].limpio++;
+    if (est === "Cod. 28") agrupado[emp].c28++;
+  });
+
+  const labels = ordenEmpresas.filter(e => agrupado[e]);
+
+  const limpios = labels.map(e => agrupado[e].limpio);
+  const c28 = labels.map(e => agrupado[e].c28);
+
+  const ctx = document.getElementById("grafico");
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "🟢 Limpios",
+          data: limpios,
+          backgroundColor: "#2ecc71"
+        },
+        {
+          label: "🔴 Cod. 28",
+          data: c28,
+          backgroundColor: "#e74c3c"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true }
+      }
+    }
+  });
 }
 
 </script>
