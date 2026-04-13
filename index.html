@@ -72,7 +72,8 @@ th { background: #eee; }
 
 <script>
 
-const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJbRj1s7RKeC5xv-ag/export?format=csv&gid=0";
+// 🔗 NUEVO GOOGLE SHEET
+const url = "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDbK_aejhn6ZyIviQSE/export?format=csv&gid=0";
 
 let datosGlobal = [];
 let empresaActual = "";
@@ -80,7 +81,7 @@ let chart = null;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// 🔥 LIMPIEZA DE TEXTO (CLAVE PARA EVITAR ERRORES)
+// 🧼 limpiar texto (evita errores con acentos / ñ / espacios)
 function limpiarTexto(t){
   return String(t || "")
     .normalize("NFD")
@@ -88,14 +89,10 @@ function limpiarTexto(t){
     .trim();
 }
 
-// 📥 CARGA SEGURA
+// 📥 cargar datos
 fetch(url)
 .then(r => r.text())
 .then(csv => {
-
-  if (!csv || csv.length < 10) {
-    throw new Error("CSV vacío o inválido");
-  }
 
   const data = Papa.parse(csv, {
     header: true,
@@ -107,7 +104,7 @@ fetch(url)
   actualizarVista();
 })
 .catch(err => {
-  console.error("ERROR CARGA:", err);
+  console.error("Error cargando CSV:", err);
   document.getElementById("resumen").innerHTML =
     "❌ Error cargando datos";
 });
@@ -151,6 +148,7 @@ function actualizarVista(){
 
 // 📊 TABLA
 function generarTabla(data){
+
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
 
@@ -215,7 +213,7 @@ function generarResumen(data){
   document.getElementById("resumen").innerHTML = html;
 }
 
-// 📊 GRAFICO ROBUSTO
+// 📊 GRAFICO
 function generarGrafico(data){
 
   const agrupado = {};
