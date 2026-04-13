@@ -33,9 +33,9 @@ th, td {
 
 th { background: #eee; }
 
-canvas {
-  margin-top: 20px;
-  max-width: 100%;
+#grafico {
+  height: 320px;
+  margin-top: 10px;
 }
 </style>
 </head>
@@ -44,7 +44,6 @@ canvas {
 
 <h1>Control Pluvial</h1>
 
-<!-- FILTRO EMPRESA -->
 <label>Filtrar por empresa:</label>
 <select id="filtroEmpresa">
   <option value="">Todas</option>
@@ -77,45 +76,40 @@ const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJ
 
 let datosGlobal = [];
 let empresaActual = "";
-let chart;
+let chart = null;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// 📥 cargar datos
+// 📥 CARGA DE DATOS
 fetch(url)
 .then(r => r.text())
 .then(csv => {
   const data = Papa.parse(csv, { header: true }).data;
-
   datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
-
   actualizarVista();
 });
 
-// 🔽 filtro empresa
+// 🔽 FILTRO EMPRESA
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
 });
 
-// 🔍 buscador
+// 🔍 BUSCADOR
 let timeout;
-
 document.getElementById("buscador").addEventListener("input", () => {
   clearTimeout(timeout);
-  timeout = setTimeout(() => actualizarVista(), 300);
+  timeout = setTimeout(() => actualizarVista(), 250);
 });
 
 // 🔥 FUNCIÓN CENTRAL
 function actualizarVista(){
   let data = datosGlobal;
 
-  // filtro empresa
   if (empresaActual) {
     data = data.filter(d => d["Empresa"] === empresaActual);
   }
 
-  // buscador
   const texto = document.getElementById("buscador").value.toLowerCase();
 
   if (texto) {
@@ -190,7 +184,7 @@ function generarResumen(data){
   document.getElementById("resumen").innerHTML = html;
 }
 
-// 📊 GRAFICO APILADO
+// 📊 GRAFICO (FIX FINAL)
 function generarGrafico(data){
 
   const agrupado = {};
@@ -209,10 +203,15 @@ function generarGrafico(data){
     if (est === "Cod. 28") agrupado[emp].c28++;
   });
 
-  const labels = ordenEmpresas.filter(e => agrupado[e]);
+  const labels = Object.keys(agrupado);
 
-  const limpios = labels.map(e => agrupado[e].limpio);
-  const c28 = labels.map(e => agrupado[e].c28);
+  if (labels.length === 0) {
+    if (chart) chart.destroy();
+    return;
+  }
+
+  const limpios = labels.map(e => agrupado[e].limpio || 0);
+  const c28 = labels.map(e => agrupado[e].c28 || 0);
 
   const ctx = document.getElementById("grafico");
 
@@ -221,7 +220,7 @@ function generarGrafico(data){
   chart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
           label: "🟢 Limpios",
@@ -237,6 +236,7 @@ function generarGrafico(data){
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       scales: {
         x: { stacked: true },
         y: { stacked: true, beginAtZero: true }
