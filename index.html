@@ -56,9 +56,9 @@ const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJ
 let datosGlobal = [];
 let colEmpresa, colEstado, colCalle;
 
-// ORDEN FIJO
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
+// 📥 Cargar datos
 fetch(url)
 .then(r => r.text())
 .then(csv => {
@@ -72,6 +72,7 @@ fetch(url)
   generarTabla(datosGlobal.slice(0, 100));
 });
 
+// 🔍 Detectar columnas
 function detectarColumnas(fila){
   Object.keys(fila).forEach(c => {
     const n = c.toLowerCase();
@@ -81,7 +82,7 @@ function detectarColumnas(fila){
   });
 }
 
-// 🔍 buscador
+// 🔎 Buscador
 let timeout;
 
 document.getElementById("buscador").addEventListener("input", e => {
@@ -98,7 +99,7 @@ document.getElementById("buscador").addEventListener("input", e => {
   }, 300);
 });
 
-// 📊 tabla
+// 📊 Tabla
 function generarTabla(data){
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
@@ -120,29 +121,26 @@ function generarTabla(data){
   });
 }
 
-// 📈 resumen CORREGIDO
+// 📈 RESUMEN FINAL CORRECTO
 function generarResumen(data){
   const r = {};
 
   data.forEach(d => {
     const emp = (d[colEmpresa] || "").trim();
-    const est = String(d[colEstado] || "").toLowerCase();
+    const est = (d[colEstado] || "").trim();
 
     if (!emp) return;
 
     if (!r[emp]) r[emp] = { limpios: 0, c28: 0, total: 0 };
 
-    // TOTAL siempre suma
     r[emp].total++;
 
-    // SOLO cuenta cuando corresponde
-    if (est.includes("limpio")) r[emp].limpios++;
-    if (est.includes("28")) r[emp].c28++;
+    if (est === "Limpio") r[emp].limpios++;
+    if (est === "Cod. 28") r[emp].c28++;
   });
 
   let html = "";
 
-  // 🔥 orden fijo
   ordenEmpresas.forEach(emp => {
     if (!r[emp]) return;
 
@@ -151,11 +149,11 @@ function generarResumen(data){
 
     html += `
     <div class="card ${cls}">
-      <b>${emp}</b><br>
-      Limpios: ${r[emp].limpios}<br>
-      Cod 28: ${r[emp].c28}<br>
-      Total: ${r[emp].total}<br>
-      ${p.toFixed(1)}%
+      <b>${emp}</b><br><br>
+      🟢 Limpios: ${r[emp].limpios}<br>
+      🔴 Cod. 28: ${r[emp].c28}<br>
+      📊 Total: ${r[emp].total}<br>
+      📈 ${p.toFixed(1)}%
     </div>`;
   });
 
