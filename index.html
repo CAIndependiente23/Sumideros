@@ -80,22 +80,45 @@ let chart = null;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// 📥 CARGA DE DATOS
+// 🔥 LIMPIEZA DE TEXTO (CLAVE PARA EVITAR ERRORES)
+function limpiarTexto(t){
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+// 📥 CARGA SEGURA
 fetch(url)
 .then(r => r.text())
 .then(csv => {
-  const data = Papa.parse(csv, { header: true }).data;
+
+  if (!csv || csv.length < 10) {
+    throw new Error("CSV vacío o inválido");
+  }
+
+  const data = Papa.parse(csv, {
+    header: true,
+    skipEmptyLines: true
+  }).data;
+
   datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
+
   actualizarVista();
+})
+.catch(err => {
+  console.error("ERROR CARGA:", err);
+  document.getElementById("resumen").innerHTML =
+    "❌ Error cargando datos";
 });
 
-// 🔽 FILTRO EMPRESA
+// 🔽 filtro empresa
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
 });
 
-// 🔍 BUSCADOR
+// 🔍 buscador
 let timeout;
 document.getElementById("buscador").addEventListener("input", () => {
   clearTimeout(timeout);
@@ -104,17 +127,20 @@ document.getElementById("buscador").addEventListener("input", () => {
 
 // 🔥 FUNCIÓN CENTRAL
 function actualizarVista(){
+
   let data = datosGlobal;
 
   if (empresaActual) {
-    data = data.filter(d => d["Empresa"] === empresaActual);
+    data = data.filter(d =>
+      limpiarTexto(d["Empresa"]) === empresaActual
+    );
   }
 
-  const texto = document.getElementById("buscador").value.toLowerCase();
+  const texto = limpiarTexto(document.getElementById("buscador").value);
 
   if (texto) {
     data = data.filter(d =>
-      String(d["Calle"] || "").toLowerCase().includes(texto)
+      limpiarTexto(d["Calle"]).toLowerCase().includes(texto.toLowerCase())
     );
   }
 
@@ -147,11 +173,13 @@ function generarTabla(data){
 
 // 📈 RESUMEN
 function generarResumen(data){
+
   const r = {};
 
   data.forEach(d => {
-    const emp = (d["Empresa"] || "").trim();
-    const est = (d["Estado Sumidero"] || "").trim();
+
+    const emp = limpiarTexto(d["Empresa"]);
+    const est = limpiarTexto(d["Estado Sumidero"]);
 
     if (!emp) return;
 
@@ -166,17 +194,20 @@ function generarResumen(data){
   let html = "";
 
   ordenEmpresas.forEach(emp => {
-    if (!r[emp]) return;
 
-    const p = r[emp].total ? (r[emp].limpios / r[emp].total) * 100 : 0;
+    const key = limpiarTexto(emp);
+
+    if (!r[key]) return;
+
+    const p = r[key].total ? (r[key].limpios / r[key].total) * 100 : 0;
     const cls = p >= 80 ? "ok" : "bad";
 
     html += `
     <div class="card ${cls}">
       <b>${emp}</b><br><br>
-      🟢 Limpios: ${r[emp].limpios}<br>
-      🔴 Cod. 28: ${r[emp].c28}<br>
-      📊 Total: ${r[emp].total}<br>
+      🟢 Limpios: ${r[key].limpios}<br>
+      🔴 Cod. 28: ${r[key].c28}<br>
+      📊 Total: ${r[key].total}<br>
       📈 ${p.toFixed(1)}%
     </div>`;
   });
@@ -184,14 +215,15 @@ function generarResumen(data){
   document.getElementById("resumen").innerHTML = html;
 }
 
-// 📊 GRAFICO (FIX FINAL)
+// 📊 GRAFICO ROBUSTO
 function generarGrafico(data){
 
   const agrupado = {};
 
   data.forEach(d => {
-    const emp = (d["Empresa"] || "").trim();
-    const est = (d["Estado Sumidero"] || "").trim();
+
+    const emp = limpiarTexto(d["Empresa"]);
+    const est = limpiarTexto(d["Estado Sumidero"]);
 
     if (!emp) return;
 
@@ -205,13 +237,13 @@ function generarGrafico(data){
 
   const labels = Object.keys(agrupado);
 
-  if (labels.length === 0) {
+  if (!labels.length) {
     if (chart) chart.destroy();
     return;
   }
 
-  const limpios = labels.map(e => agrupado[e].limpio || 0);
-  const c28 = labels.map(e => agrupado[e].c28 || 0);
+  const limpios = labels.map(e => agrupado[e].limpio);
+  const c28 = labels.map(e => agrupado[e].c28);
 
   const ctx = document.getElementById("grafico");
 
