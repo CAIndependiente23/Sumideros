@@ -8,8 +8,6 @@
 
 <style>
 body { font-family: Arial; margin: 20px; }
-h1 { margin-bottom: 10px; }
-input { padding: 5px; margin-bottom: 15px; width: 300px; }
 
 .card {
   display: inline-block;
@@ -29,8 +27,7 @@ table {
 
 th, td {
   border: 1px solid #ccc;
-  padding: 6px;
-  text-align: left;
+  padding: 5px;
 }
 
 th { background: #eee; }
@@ -44,59 +41,45 @@ th { background: #eee; }
 <input type="text" id="buscador" placeholder="Buscar por calle...">
 
 <h2>Resumen por empresa</h2>
-<div id="resumen"></div>
+<div id="resumen">Cargando...</div>
 
-<h2>Elementos</h2>
+<h2>Elementos (limitado)</h2>
 <table>
-<thead>
-<tr id="headers"></tr>
-</thead>
+<thead><tr id="headers"></tr></thead>
 <tbody id="tabla"></tbody>
 </table>
 
 <script>
 
-// 🔗 Google Sheets CSV
 const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJbRj1s7RKeC5xv-ag/export?format=csv&gid=0";
 
 let datosGlobal = [];
+let colEmpresa, colEstado, colCalle;
 
-// 🔍 columnas detectadas automáticamente
-let colEmpresa = null;
-let colEstado = null;
-let colCalle = null;
-
-// 📥 Cargar datos
+// 🚀 Carga liviana
 fetch(url)
-  .then(response => response.text())
-  .then(csv => {
-    const results = Papa.parse(csv, { header: true });
+.then(r => r.text())
+.then(csv => {
+  const data = Papa.parse(csv, { header: true }).data;
 
-    datosGlobal = results.data.filter(d => Object.keys(d).length > 1);
+  datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
 
-    detectarColumnas(datosGlobal[0]);
+  detectarColumnas(datosGlobal[0]);
 
-    generarTabla(datosGlobal.slice(0, 200)); // carga inicial liviana
-    generarResumen(datosGlobal);
-  })
-  .catch(error => console.error("Error cargando CSV:", error));
+  generarResumen(datosGlobal);
+  generarTabla(datosGlobal.slice(0, 100)); // 🔥 solo 100 filas
+});
 
-// 🧠 Detectar nombres reales de columnas
-function detectarColumnas(fila) {
-  const columnas = Object.keys(fila);
-
-  columnas.forEach(c => {
-    const nombre = c.toLowerCase();
-
-    if (nombre.includes("empresa")) colEmpresa = c;
-    if (nombre.includes("estado")) colEstado = c;
-    if (nombre.includes("calle")) colCalle = c;
+function detectarColumnas(fila){
+  Object.keys(fila).forEach(c => {
+    const n = c.toLowerCase();
+    if (n.includes("empresa")) colEmpresa = c;
+    if (n.includes("estado")) colEstado = c;
+    if (n.includes("calle")) colCalle = c;
   });
-
-  console.log("Columnas detectadas:", colEmpresa, colEstado, colCalle);
 }
 
-// 🔍 Buscador optimizado
+// 🔍 buscador liviano
 let timeout;
 
 document.getElementById("buscador").addEventListener("input", e => {
@@ -109,79 +92,71 @@ document.getElementById("buscador").addEventListener("input", e => {
       String(d[colCalle] || "").toLowerCase().includes(texto)
     );
 
-    generarTabla(filtrados.slice(0, 200)); // limita para evitar freeze
+    generarTabla(filtrados.slice(0, 100));
   }, 300);
 });
 
-// 📊 Tabla
-function generarTabla(data) {
-  const tabla = document.getElementById("tabla");
-  const headers = document.getElementById("headers");
+// 📊 tabla
+function generarTabla(data){
+  const t = document.getElementById("tabla");
+  const h = document.getElementById("headers");
 
-  tabla.innerHTML = "";
-  headers.innerHTML = "";
+  t.innerHTML = "";
+  h.innerHTML = "";
 
-  if (data.length === 0) return;
+  if (!data.length) return;
 
   Object.keys(data[0]).forEach(k => {
-    headers.innerHTML += `<th>${k}</th>`;
+    h.innerHTML += `<th>${k}</th>`;
   });
 
   data.forEach(d => {
     let row = "<tr>";
-
-    Object.values(d).forEach(v => {
-      row += `<td>${v}</td>`;
-    });
-
+    Object.values(d).forEach(v => row += `<td>${v}</td>`);
     row += "</tr>";
-    tabla.innerHTML += row;
+    t.innerHTML += row;
   });
 }
 
-// 📈 Dashboard por empresa
-function generarResumen(data) {
-  const resumen = {};
+// 📈 resumen
+function generarResumen(data){
+  const r = {};
 
   data.forEach(d => {
-    const empresa = d[colEmpresa] || "Sin empresa";
-    const estado = String(d[colEstado] || "").toLowerCase();
+    const emp = d[colEmpresa] || "Sin empresa";
+    const est = String(d[colEstado] || "").toLowerCase();
 
-    if (!resumen[empresa]) {
-      resumen[empresa] = { limpios: 0, cod28: 0, total: 0 };
-    }
+    if(!r[emp]) r[emp] = {limpios:0, c28:0, total:0};
 
-    if (estado.includes("limpio")) resumen[empresa].limpios++;
-    if (estado.includes("28")) resumen[empresa].cod28++;
+    if(est.includes("limpio")) r[emp].limpios++;
+    if(est.includes("28")) r[emp].c28++;
 
-    resumen[empresa].total++;
+    r[emp].total++;
   });
 
   let html = "";
 
-  for (let emp in resumen) {
-    const r = resumen[emp];
-
-    const porcentaje = r.total > 0
-      ? (r.limpios / r.total) * 100
-      : 0;
-
-    const clase = porcentaje >= 80 ? "ok" : "bad";
+  for(let e in r){
+    const p = r[e].total ? (r[e].limpios / r[e].total)*100 : 0;
+    const cls = p >= 80 ? "ok" : "bad";
 
     html += `
-      <div class="card ${clase}">
-        <b>${emp}</b><br><br>
-        🟢 Limpios: ${r.limpios}<br>
-        🔴 Cod. 28: ${r.cod28}<br>
-        📊 Total: ${r.total}<br>
-        📈 % Limpios: ${porcentaje.toFixed(1)}%
-      </div>
-    `;
+    <div class="card ${cls}">
+      <b>${e}</b><br>
+      Limpios: ${r[e].limpios}<br>
+      Cod 28: ${r[e].c28}<br>
+      Total: ${r[e].total}<br>
+      ${p.toFixed(1)}%
+    </div>`;
   }
 
   document.getElementById("resumen").innerHTML = html;
 }
 
+</script>
+
+</body>
+</html>
 </script>
 
 </body>
