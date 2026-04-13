@@ -38,6 +38,19 @@ th { background: #eee; }
 
 <h1>Control Pluvial</h1>
 
+<!-- 🔽 FILTRO EMPRESA -->
+<label>Filtrar por empresa:</label>
+<select id="filtroEmpresa">
+  <option value="">Todas</option>
+  <option value="UTE">UTE</option>
+  <option value="RC">RC</option>
+  <option value="Automat">Automat</option>
+  <option value="DASA">DASA</option>
+  <option value="Alemarsa">Alemarsa</option>
+</select>
+
+<br><br>
+
 <input type="text" id="buscador" placeholder="Buscar por calle...">
 
 <h2>Resumen por empresa</h2>
@@ -54,6 +67,7 @@ th { background: #eee; }
 const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJbRj1s7RKeC5xv-ag/export?format=csv&gid=0";
 
 let datosGlobal = [];
+let empresaActual = "";
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
@@ -65,28 +79,49 @@ fetch(url)
 
   datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
 
-  generarResumen(datosGlobal);
-  generarTabla(datosGlobal.slice(0, 100));
+  actualizarVista();
 });
 
-// 🔎 Buscador
+// 🔽 filtro empresa
+document.getElementById("filtroEmpresa").addEventListener("change", e => {
+  empresaActual = e.target.value;
+  actualizarVista();
+});
+
+// 🔍 buscador
 let timeout;
 
 document.getElementById("buscador").addEventListener("input", e => {
   clearTimeout(timeout);
 
   timeout = setTimeout(() => {
-    const texto = e.target.value.toLowerCase();
-
-    const filtrados = datosGlobal.filter(d =>
-      String(d["Calle"] || "").toLowerCase().includes(texto)
-    );
-
-    generarTabla(filtrados.slice(0, 100));
+    actualizarVista();
   }, 300);
 });
 
-// 📊 Tabla
+// 🔥 función central
+function actualizarVista(){
+  let data = datosGlobal;
+
+  // filtro empresa
+  if (empresaActual) {
+    data = data.filter(d => d["Empresa"] === empresaActual);
+  }
+
+  // filtro buscador
+  const texto = document.getElementById("buscador").value.toLowerCase();
+
+  if (texto) {
+    data = data.filter(d =>
+      String(d["Calle"] || "").toLowerCase().includes(texto)
+    );
+  }
+
+  generarResumen(data);
+  generarTabla(data.slice(0, 100));
+}
+
+// 📊 tabla
 function generarTabla(data){
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
@@ -108,7 +143,7 @@ function generarTabla(data){
   });
 }
 
-// 📈 RESUMEN FINAL FUNCIONANDO
+// 📈 resumen dinámico
 function generarResumen(data){
   const r = {};
 
