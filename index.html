@@ -43,7 +43,7 @@ th { background: #eee; }
 <h2>Resumen por empresa</h2>
 <div id="resumen">Cargando...</div>
 
-<h2>Elementos (limitado)</h2>
+<h2>Elementos</h2>
 <table>
 <thead><tr id="headers"></tr></thead>
 <tbody id="tabla"></tbody>
@@ -56,7 +56,9 @@ const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJ
 let datosGlobal = [];
 let colEmpresa, colEstado, colCalle;
 
-// 🚀 Carga liviana
+// ORDEN FIJO
+const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
+
 fetch(url)
 .then(r => r.text())
 .then(csv => {
@@ -67,7 +69,7 @@ fetch(url)
   detectarColumnas(datosGlobal[0]);
 
   generarResumen(datosGlobal);
-  generarTabla(datosGlobal.slice(0, 100)); // 🔥 solo 100 filas
+  generarTabla(datosGlobal.slice(0, 100));
 });
 
 function detectarColumnas(fila){
@@ -79,7 +81,7 @@ function detectarColumnas(fila){
   });
 }
 
-// 🔍 buscador liviano
+// 🔍 buscador
 let timeout;
 
 document.getElementById("buscador").addEventListener("input", e => {
@@ -118,45 +120,48 @@ function generarTabla(data){
   });
 }
 
-// 📈 resumen
+// 📈 resumen CORREGIDO
 function generarResumen(data){
   const r = {};
 
   data.forEach(d => {
-    const emp = d[colEmpresa] || "Sin empresa";
+    const emp = (d[colEmpresa] || "").trim();
     const est = String(d[colEstado] || "").toLowerCase();
 
-    if(!r[emp]) r[emp] = {limpios:0, c28:0, total:0};
+    if (!emp) return;
 
-    if(est.includes("limpio")) r[emp].limpios++;
-    if(est.includes("28")) r[emp].c28++;
+    if (!r[emp]) r[emp] = { limpios: 0, c28: 0, total: 0 };
 
+    // TOTAL siempre suma
     r[emp].total++;
+
+    // SOLO cuenta cuando corresponde
+    if (est.includes("limpio")) r[emp].limpios++;
+    if (est.includes("28")) r[emp].c28++;
   });
 
   let html = "";
 
-  for(let e in r){
-    const p = r[e].total ? (r[e].limpios / r[e].total)*100 : 0;
+  // 🔥 orden fijo
+  ordenEmpresas.forEach(emp => {
+    if (!r[emp]) return;
+
+    const p = r[emp].total ? (r[emp].limpios / r[emp].total) * 100 : 0;
     const cls = p >= 80 ? "ok" : "bad";
 
     html += `
     <div class="card ${cls}">
-      <b>${e}</b><br>
-      Limpios: ${r[e].limpios}<br>
-      Cod 28: ${r[e].c28}<br>
-      Total: ${r[e].total}<br>
+      <b>${emp}</b><br>
+      Limpios: ${r[emp].limpios}<br>
+      Cod 28: ${r[emp].c28}<br>
+      Total: ${r[emp].total}<br>
       ${p.toFixed(1)}%
     </div>`;
-  }
+  });
 
   document.getElementById("resumen").innerHTML = html;
 }
 
-</script>
-
-</body>
-</html>
 </script>
 
 </body>
