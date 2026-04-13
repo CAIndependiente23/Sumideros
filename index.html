@@ -54,7 +54,6 @@ th { background: #eee; }
 const url = "https://docs.google.com/spreadsheets/d/10DNZYFxn4pIWvggvdWa9vMmuLBJbRj1s7RKeC5xv-ag/export?format=csv&gid=0";
 
 let datosGlobal = [];
-let colEmpresa, colEstado, colCalle;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
@@ -66,21 +65,9 @@ fetch(url)
 
   datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
 
-  detectarColumnas(datosGlobal[0]);
-
   generarResumen(datosGlobal);
   generarTabla(datosGlobal.slice(0, 100));
 });
-
-// 🔍 Detectar columnas
-function detectarColumnas(fila){
-  Object.keys(fila).forEach(c => {
-    const n = c.toLowerCase();
-    if (n.includes("empresa")) colEmpresa = c;
-    if (n.includes("estado")) colEstado = c;
-    if (n.includes("calle")) colCalle = c;
-  });
-}
 
 // 🔎 Buscador
 let timeout;
@@ -92,7 +79,7 @@ document.getElementById("buscador").addEventListener("input", e => {
     const texto = e.target.value.toLowerCase();
 
     const filtrados = datosGlobal.filter(d =>
-      String(d[colCalle] || "").toLowerCase().includes(texto)
+      String(d["Calle"] || "").toLowerCase().includes(texto)
     );
 
     generarTabla(filtrados.slice(0, 100));
@@ -121,13 +108,13 @@ function generarTabla(data){
   });
 }
 
-// 📈 RESUMEN FINAL CORRECTO
+// 📈 RESUMEN FINAL FUNCIONANDO
 function generarResumen(data){
   const r = {};
 
   data.forEach(d => {
-    const emp = (d[colEmpresa] || "").trim();
-    const est = (d[colEstado] || "").trim();
+    const emp = (d["Empresa"] || "").trim();
+    const est = (d["Estado Sumidero"] || "").trim();
 
     if (!emp) return;
 
