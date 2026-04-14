@@ -70,6 +70,8 @@ th { background: #eee; }
 <br><br>
 
 <input type="text" id="buscador" placeholder="Buscar por calle...">
+<br><br>
+<input type="text" id="buscadorAltura" placeholder="Buscar por altura...">
 
 <h2>Indicador gráfico</h2>
 <div style="width:25vw; max-width:320px;">
@@ -207,7 +209,13 @@ document.getElementById("filtroEmpresa").addEventListener("change", e => {
 });
 
 let timeout;
+
 document.getElementById("buscador").addEventListener("input", () => {
+  clearTimeout(timeout);
+  timeout = setTimeout(actualizarVista, 250);
+});
+
+document.getElementById("buscadorAltura").addEventListener("input", () => {
   clearTimeout(timeout);
   timeout = setTimeout(actualizarVista, 250);
 });
@@ -217,17 +225,28 @@ function actualizarVista(){
 
   let data = datosGlobal;
 
+  // filtro empresa
   if (empresaActual) {
     data = data.filter(d =>
       limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual)
     );
   }
 
+  // filtro calle
   const texto = limpiarTexto(document.getElementById("buscador").value);
-
   if (texto) {
     data = data.filter(d =>
       limpiarTexto(d["Calle"]).toLowerCase().includes(texto.toLowerCase())
+    );
+  }
+
+  // 🔥 NUEVO FILTRO ALTURA
+  const altura = limpiarTexto(document.getElementById("buscadorAltura").value);
+  if (altura) {
+    data = data.filter(d =>
+      limpiarTexto(d["Altura"] || d["Altura Calle"] || "")
+        .toLowerCase()
+        .includes(altura.toLowerCase())
     );
   }
 
@@ -236,9 +255,11 @@ function actualizarVista(){
   actualizarGrafico(data);
 }
 
-// ✅ NUEVO RESUMEN
-function generarResumen(data){
+// RESTO DEL CÓDIGO IGUAL ↓↓↓
 
+// (no cambia nada más)
+
+function generarResumen(data){
   const r = {};
 
   const pliegos = {
@@ -250,7 +271,6 @@ function generarResumen(data){
   };
 
   data.forEach(d => {
-
     const emp = limpiarTexto(d["Empresa"]);
     const est = limpiarTexto(d["Estado Sumidero"]);
 
@@ -265,7 +285,6 @@ function generarResumen(data){
   let html = "";
 
   ordenEmpresas.forEach(emp => {
-
     const key = limpiarTexto(emp);
     if (!r[key]) return;
 
@@ -294,9 +313,7 @@ function generarResumen(data){
   document.getElementById("resumen").innerHTML = html;
 }
 
-// TABLA
 function generarTabla(data){
-
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
 
@@ -317,7 +334,6 @@ function generarTabla(data){
   });
 }
 
-// GRÁFICO
 function actualizarGrafico(data){
 
   const empresas = ordenEmpresas.map(e => limpiarTexto(e));
