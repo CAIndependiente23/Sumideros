@@ -1,8 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Pluvial</title>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: Arial; margin: 20px; }
+
+.card {
+  display: inline-block;
+  padding: 10px;
+  margin: 5px;
+  border-radius: 8px;
+  background: #f0f0f0;
+}
+
+.ok { background: #c8f7c5; }
+.bad { background: #f7c5c5; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 5px;
+}
+
+th { background: #eee; }
+
+.boton-mes {
+  padding: 8px 12px;
+  margin-right: 5px;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.activo {
+  background: #333;
+  color: white;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Control Pluvial</h1>
+
+<h3>Mes:</h3>
+<div id="meses"></div>
+
+<br>
+
+<label>Filtrar por empresa:</label>
+<select id="filtroEmpresa">
+  <option value="">Todas</option>
+  <option value="UTE">UTE</option>
+  <option value="RC">RC</option>
+  <option value="Automat">Automat</option>
+  <option value="DASA">DASA</option>
+  <option value="Alemarsa">Alemarsa</option>
+</select>
+
+<br><br>
+
+<input type="text" id="buscador" placeholder="Buscar por calle...">
+
+<h2>Indicador gráfico</h2>
+<div style="width:25vw; max-width:320px;">
+  <canvas id="grafico"></canvas>
+</div>
+
+<h2>Resumen por empresa</h2>
+<div id="resumen">Cargando...</div>
+
+<h2>Elementos</h2>
+<table>
+<thead><tr id="headers"></tr></thead>
+<tbody id="tabla"></tbody>
+</table>
+
+<script>
+
+// LINKS
+const urlsPorMes = {
+  "ENERO": "https://docs.google.com/spreadsheets/d/1plo7XrKfaZzkgVAu1Dy1L8zPlt5YCTGX7p5ug-gsWPg/export?format=csv",
+  "FEBRERO": "https://docs.google.com/spreadsheets/d/1PWL289FN7BRAF4Vcvs3hdxcvdCxP4Vyt0BniCpng4l8/export?format=csv",
+  "MARZO": "https://docs.google.com/spreadsheets/d/1kn-haRJBsVdhUFRyDP1h3nfF3tGgf2JF1CRfw7WN0sY/export?format=csv",
+  "ABRIL": "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDbK_aejhn6ZyIviQSE/export?format=csv&gid=0"
+};
+
+let mesActual = "ABRIL";
+let datosGlobal = [];
+let empresaActual = "";
+let chart;
+
+const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
+
+// BOTONES
+const contMeses = document.getElementById("meses");
+
+["GLOBAL", ...Object.keys(urlsPorMes)].forEach(mes => {
+  const btn = document.createElement("button");
+  btn.innerText = mes;
+  btn.className = "boton-mes";
+
+  if (mes === mesActual) btn.classList.add("activo");
+
+  btn.onclick = () => {
+    mesActual = mes;
+    document.querySelectorAll(".boton-mes").forEach(b => b.classList.remove("activo"));
+    btn.classList.add("activo");
+    cargarDatos(mes);
+  };
+
+  contMeses.appendChild(btn);
+});
+
+// LIMPIAR TEXTO
+function limpiarTexto(t){
+  return String(t || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+// CARGAR DATOS
+function cargarDatos(mes){
+
+  document.getElementById("resumen").innerHTML = "Cargando...";
+
+  if (mes === "GLOBAL") {
+
+    const promesas = Object.values(urlsPorMes).map(url =>
+      fetch(url)
+        .then(r => r.text())
+        .then(csv => Papa.parse(csv, {
+          header: true,
+          skipEmptyLines: true
+        }).data)
+    );
+
+    Promise.all(promesas)
+    .then(resultados => {
+
+      let combinado = [];
+
+      resultados.forEach(data => {
+        const limpio = data.map(row => {
+          const obj = {};
+          Object.keys(row).forEach(k => {
+            obj[limpiarTexto(k)] = row[k];
+          });
+          return obj;
+        });
+
+        combinado = combinado.concat(
+          limpio.filter(d => d && Object.keys(d).length > 1)
+        );
+      });
+
+      datosGlobal = combinado;
+      actualizarVista();
+    })
+    .catch(() => {
+      document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
+    });
+
+    return;
+  }
+
+  fetch(urlsPorMes[mes])
+  .then(r => r.text())
+  .then(csv => {
+
+    const parsed = Papa.parse(csv, {
+      header: true,
+      skipEmptyLines: true
+    });
+
+    const data = parsed.data.map(row => {
+      const limpio = {};
+      Object.keys(row).forEach(k => {
+        limpio[limpiarTexto(k)] = row[k];
+      });
+      return limpio;
+    });
+
+    datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
+    actualizarVista();
+  })
+  .catch(() => {
+    document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
+  });
+}
+
+// FILTROS
+document.getElementById("filtroEmpresa").addEventListener("change", e => {
+  empresaActual = e.target.value;
+  actualizarVista();
+});
+
+let timeout;
+document.getElementById("buscador").addEventListener("input", () => {
+  clearTimeout(timeout);
+  timeout = setTimeout(actualizarVista, 250);
+});
+
+// VISTA
+function actualizarVista(){
+
+  let data = datosGlobal;
+
+  if (empresaActual) {
+    data = data.filter(d =>
+      limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual)
+    );
+  }
+
+  const texto = limpiarTexto(document.getElementById("buscador").value);
+
+  if (texto) {
+    data = data.filter(d =>
+      limpiarTexto(d["Calle"]).toLowerCase().includes(texto.toLowerCase())
+    );
+  }
+
+  generarResumen(data);
+  generarTabla(data.slice(0, 100));
+  actualizarGrafico(data);
+}
+
+// ✅ NUEVO RESUMEN
 function generarResumen(data){
 
   const r = {};
 
-  // PLIEGOS FIJOS
   const pliegos = {
     "UTE": 8211,
     "RC": 7028,
@@ -55,3 +293,87 @@ function generarResumen(data){
 
   document.getElementById("resumen").innerHTML = html;
 }
+
+// TABLA
+function generarTabla(data){
+
+  const t = document.getElementById("tabla");
+  const h = document.getElementById("headers");
+
+  t.innerHTML = "";
+  h.innerHTML = "";
+
+  if (!data.length) return;
+
+  Object.keys(data[0]).forEach(k => {
+    h.innerHTML += `<th>${k}</th>`;
+  });
+
+  data.forEach(d => {
+    let row = "<tr>";
+    Object.values(d).forEach(v => row += `<td>${v}</td>`);
+    row += "</tr>";
+    t.innerHTML += row;
+  });
+}
+
+// GRÁFICO
+function actualizarGrafico(data){
+
+  const empresas = ordenEmpresas.map(e => limpiarTexto(e));
+
+  let labels = [];
+  let limpios = [];
+  let cod28 = [];
+
+  empresas.forEach(emp => {
+
+    let subset = data.filter(d =>
+      limpiarTexto(d["Empresa"]) === emp
+    );
+
+    if (empresaActual && limpiarTexto(empresaActual) !== emp) return;
+
+    const l = subset.filter(d =>
+      limpiarTexto(d["Estado Sumidero"]) === "Limpio"
+    ).length;
+
+    const c = subset.filter(d =>
+      limpiarTexto(d["Estado Sumidero"]) === "Cod. 28"
+    ).length;
+
+    labels.push(emp);
+    limpios.push(l);
+    cod28.push(c);
+  });
+
+  const ctx = document.getElementById("grafico").getContext("2d");
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Limpios", data: limpios, backgroundColor: "green", stack: "s" },
+        { label: "Cod. 28", data: cod28, backgroundColor: "red", stack: "s" }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true }
+      }
+    }
+  });
+}
+
+// INICIO
+cargarDatos(mesActual);
+
+</script>
+
+</body>
+</html>
