@@ -5,7 +5,6 @@
 <title>Dashboard Pluvial</title>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body { font-family: Arial; margin: 20px; }
@@ -32,11 +31,6 @@ th, td {
 }
 
 th { background: #eee; }
-
-#grafico {
-  height: 320px;
-  margin-top: 10px;
-}
 </style>
 </head>
 
@@ -61,9 +55,6 @@ th { background: #eee; }
 <h2>Resumen por empresa</h2>
 <div id="resumen">Cargando...</div>
 
-<h2>Gráfico</h2>
-<canvas id="grafico"></canvas>
-
 <h2>Elementos</h2>
 <table>
 <thead><tr id="headers"></tr></thead>
@@ -72,16 +63,14 @@ th { background: #eee; }
 
 <script>
 
-// 🔗 URL CSV
 const url = "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDbK_aejhn6ZyIviQSE/export?format=csv&gid=0";
 
 let datosGlobal = [];
 let empresaActual = "";
-let chart = null;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// 🧼 limpiar texto (acentos, espacios, etc.)
+// limpiar texto
 function limpiarTexto(t){
   return String(t || "")
     .normalize("NFD")
@@ -89,7 +78,7 @@ function limpiarTexto(t){
     .trim();
 }
 
-// 📥 cargar CSV
+// cargar CSV
 fetch(url)
 .then(r => r.text())
 .then(csv => {
@@ -99,43 +88,36 @@ fetch(url)
     skipEmptyLines: true
   });
 
-  // 🔥 NORMALIZAR HEADERS
   const data = parsed.data.map(row => {
     const limpio = {};
-
     Object.keys(row).forEach(k => {
-      const key = limpiarTexto(k);
-      limpio[key] = row[k];
+      limpio[limpiarTexto(k)] = row[k];
     });
-
     return limpio;
   });
 
   datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
 
-  console.log("Datos cargados:", datosGlobal);
-
   actualizarVista();
 })
-.catch(err => {
-  console.error("Error cargando CSV:", err);
+.catch(() => {
   document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
 });
 
-// 🔽 filtro empresa
+// filtro empresa
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
 });
 
-// 🔍 buscador
+// buscador
 let timeout;
 document.getElementById("buscador").addEventListener("input", () => {
   clearTimeout(timeout);
-  timeout = setTimeout(() => actualizarVista(), 250);
+  timeout = setTimeout(actualizarVista, 250);
 });
 
-// 🔥 función principal
+// función principal
 function actualizarVista(){
 
   let data = datosGlobal;
@@ -154,37 +136,11 @@ function actualizarVista(){
     );
   }
 
-  console.log("Filtrados:", data);
-
   generarResumen(data);
-  generarGrafico(data);
   generarTabla(data.slice(0, 100));
 }
 
-// 📊 tabla
-function generarTabla(data){
-
-  const t = document.getElementById("tabla");
-  const h = document.getElementById("headers");
-
-  t.innerHTML = "";
-  h.innerHTML = "";
-
-  if (!data.length) return;
-
-  Object.keys(data[0]).forEach(k => {
-    h.innerHTML += `<th>${k}</th>`;
-  });
-
-  data.forEach(d => {
-    let row = "<tr>";
-    Object.values(d).forEach(v => row += `<td>${v}</td>`);
-    row += "</tr>";
-    t.innerHTML += row;
-  });
-}
-
-// 📈 resumen
+// resumen
 function generarResumen(data){
 
   const r = {};
@@ -209,7 +165,6 @@ function generarResumen(data){
   ordenEmpresas.forEach(emp => {
 
     const key = limpiarTexto(emp);
-
     if (!r[key]) return;
 
     const p = r[key].total ? (r[key].limpios / r[key].total) * 100 : 0;
@@ -228,65 +183,26 @@ function generarResumen(data){
   document.getElementById("resumen").innerHTML = html;
 }
 
-// 📊 gráfico
-function generarGrafico(data){
+// tabla
+function generarTabla(data){
 
-  const agrupado = {};
+  const t = document.getElementById("tabla");
+  const h = document.getElementById("headers");
 
-  data.forEach(d => {
+  t.innerHTML = "";
+  h.innerHTML = "";
 
-    const emp = limpiarTexto(d["Empresa"]);
-    const est = limpiarTexto(d["Estado Sumidero"]);
+  if (!data.length) return;
 
-    if (!emp) return;
-
-    if (!agrupado[emp]) {
-      agrupado[emp] = { limpio: 0, c28: 0 };
-    }
-
-    if (est === "Limpio") agrupado[emp].limpio++;
-    if (est === "Cod. 28") agrupado[emp].c28++;
+  Object.keys(data[0]).forEach(k => {
+    h.innerHTML += `<th>${k}</th>`;
   });
 
-  const labels = Object.keys(agrupado);
-
-  if (!labels.length) {
-    if (chart) chart.destroy();
-    return;
-  }
-
-  const limpios = labels.map(e => agrupado[e].limpio);
-  const c28 = labels.map(e => agrupado[e].c28);
-
-  const ctx = document.getElementById("grafico");
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "🟢 Limpios",
-          data: limpios,
-          backgroundColor: "#2ecc71"
-        },
-        {
-          label: "🔴 Cod. 28",
-          data: c28,
-          backgroundColor: "#e74c3c"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { stacked: true },
-        y: { stacked: true, beginAtZero: true }
-      }
-    }
+  data.forEach(d => {
+    let row = "<tr>";
+    Object.values(d).forEach(v => row += `<td>${v}</td>`);
+    row += "</tr>";
+    t.innerHTML += row;
   });
 }
 
