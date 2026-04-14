@@ -5,6 +5,7 @@
 <title>Dashboard Pluvial</title>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body { font-family: Arial; margin: 20px; }
@@ -52,6 +53,11 @@ th { background: #eee; }
 
 <input type="text" id="buscador" placeholder="Buscar por calle...">
 
+<h2>Indicador gráfico</h2>
+<div style="width:25vw; max-width:320px;">
+  <canvas id="grafico"></canvas>
+</div>
+
 <h2>Resumen por empresa</h2>
 <div id="resumen">Cargando...</div>
 
@@ -67,6 +73,7 @@ const url = "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDb
 
 let datosGlobal = [];
 let empresaActual = "";
+let chart;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
@@ -78,7 +85,7 @@ function limpiarTexto(t){
     .trim();
 }
 
-// cargar CSV
+// cargar datos
 fetch(url)
 .then(r => r.text())
 .then(csv => {
@@ -104,20 +111,19 @@ fetch(url)
   document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
 });
 
-// filtro empresa
+// filtros
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
 });
 
-// buscador
 let timeout;
 document.getElementById("buscador").addEventListener("input", () => {
   clearTimeout(timeout);
   timeout = setTimeout(actualizarVista, 250);
 });
 
-// función principal
+// VISTA PRINCIPAL
 function actualizarVista(){
 
   let data = datosGlobal;
@@ -138,9 +144,10 @@ function actualizarVista(){
 
   generarResumen(data);
   generarTabla(data.slice(0, 100));
+  actualizarGrafico(data);
 }
 
-// resumen
+// RESUMEN
 function generarResumen(data){
 
   const r = {};
@@ -183,7 +190,7 @@ function generarResumen(data){
   document.getElementById("resumen").innerHTML = html;
 }
 
-// tabla
+// TABLA
 function generarTabla(data){
 
   const t = document.getElementById("tabla");
@@ -203,6 +210,105 @@ function generarTabla(data){
     Object.values(d).forEach(v => row += `<td>${v}</td>`);
     row += "</tr>";
     t.innerHTML += row;
+  });
+}
+
+// GRÁFICO
+function actualizarGrafico(data){
+
+  const empresas = ordenEmpresas.map(e => limpiarTexto(e));
+
+  let labels = [];
+  let limpios = [];
+  let cod28 = [];
+  let porcentajes = [];
+
+  empresas.forEach(emp => {
+
+    let subset = data.filter(d =>
+      limpiarTexto(d["Empresa"]) === emp
+    );
+
+    if (empresaActual && limpiarTexto(empresaActual) !== emp) return;
+
+    const l = subset.filter(d =>
+      limpiarTexto(d["Estado Sumidero"]) === "Limpio"
+    ).length;
+
+    const c = subset.filter(d =>
+      limpiarTexto(d["Estado Sumidero"]) === "Cod. 28"
+    ).length;
+
+    const total = l + c;
+
+    labels.push(emp);
+    limpios.push(l);
+    cod28.push(c);
+
+    porcentajes.push(total ? ((l / total) * 100).toFixed(0) : 0);
+  });
+
+  const ctx = document.getElementById("grafico").getContext("2d");
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Limpios",
+          data: limpios,
+          backgroundColor: "rgba(0,180,0,0.7)",
+          stack: "stack1"
+        },
+        {
+          label: "Cod. 28",
+          data: cod28,
+          backgroundColor: "rgba(220,0,0,0.7)",
+          stack: "stack1"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const i = ctx.dataIndex;
+              return `${ctx.dataset.label}: ${ctx.raw} (${porcentajes[i]}% Limpios)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true }
+      }
+    },
+    plugins: [{
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+
+        chart.data.labels.forEach((label, i) => {
+
+          const meta = chart.getDatasetMeta(0);
+          const x = meta.data[i].x;
+          const y = meta.data[i].y;
+
+          ctx.save();
+          ctx.font = "bold 12px Arial";
+          ctx.fillStyle = "#000";
+          ctx.textAlign = "center";
+          ctx.fillText(porcentajes[i] + "%", x, y - 8);
+          ctx.restore();
+        });
+      }
+    }]
   });
 }
 
