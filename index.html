@@ -52,7 +52,6 @@ th { background: #eee; }
 
 <h1>Control Pluvial</h1>
 
-<!-- SELECTOR DE MES -->
 <h3>Mes:</h3>
 <div id="meses"></div>
 
@@ -88,7 +87,7 @@ th { background: #eee; }
 
 <script>
 
-// 🔗 LINKS POR MES
+// LINKS
 const urlsPorMes = {
   "ENERO": "https://docs.google.com/spreadsheets/d/1plo7XrKfaZzkgVAu1Dy1L8zPlt5YCTGX7p5ug-gsWPg/export?format=csv",
   "FEBRERO": "https://docs.google.com/spreadsheets/d/1PWL289FN7BRAF4Vcvs3hdxcvdCxP4Vyt0BniCpng4l8/export?format=csv",
@@ -103,13 +102,14 @@ let chart;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// CREAR BOTONES DE MES
+// BOTONES DE MES (incluye GLOBAL)
 const contMeses = document.getElementById("meses");
 
-Object.keys(urlsPorMes).forEach(mes => {
+["GLOBAL", ...Object.keys(urlsPorMes)].forEach(mes => {
   const btn = document.createElement("button");
   btn.innerText = mes;
   btn.className = "boton-mes";
+
   if (mes === mesActual) btn.classList.add("activo");
 
   btn.onclick = () => {
@@ -122,7 +122,7 @@ Object.keys(urlsPorMes).forEach(mes => {
   contMeses.appendChild(btn);
 });
 
-// limpiar texto
+// LIMPIAR TEXTO
 function limpiarTexto(t){
   return String(t || "")
     .normalize("NFD")
@@ -130,11 +130,53 @@ function limpiarTexto(t){
     .trim();
 }
 
-// CARGAR DATOS SEGÚN MES
+// CARGAR DATOS
 function cargarDatos(mes){
 
   document.getElementById("resumen").innerHTML = "Cargando...";
 
+  // GLOBAL
+  if (mes === "GLOBAL") {
+
+    const promesas = Object.values(urlsPorMes).map(url =>
+      fetch(url)
+        .then(r => r.text())
+        .then(csv => Papa.parse(csv, {
+          header: true,
+          skipEmptyLines: true
+        }).data)
+    );
+
+    Promise.all(promesas)
+    .then(resultados => {
+
+      let combinado = [];
+
+      resultados.forEach(data => {
+        const limpio = data.map(row => {
+          const obj = {};
+          Object.keys(row).forEach(k => {
+            obj[limpiarTexto(k)] = row[k];
+          });
+          return obj;
+        });
+
+        combinado = combinado.concat(
+          limpio.filter(d => d && Object.keys(d).length > 1)
+        );
+      });
+
+      datosGlobal = combinado;
+      actualizarVista();
+    })
+    .catch(() => {
+      document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
+    });
+
+    return;
+  }
+
+  // MES INDIVIDUAL
   fetch(urlsPorMes[mes])
   .then(r => r.text())
   .then(csv => {
@@ -153,7 +195,6 @@ function cargarDatos(mes){
     });
 
     datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
-
     actualizarVista();
   })
   .catch(() => {
@@ -161,7 +202,7 @@ function cargarDatos(mes){
   });
 }
 
-// filtros
+// FILTROS
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
@@ -173,7 +214,7 @@ document.getElementById("buscador").addEventListener("input", () => {
   timeout = setTimeout(actualizarVista, 250);
 });
 
-// VISTA PRINCIPAL
+// VISTA
 function actualizarVista(){
 
   let data = datosGlobal;
@@ -263,7 +304,7 @@ function generarTabla(data){
   });
 }
 
-// GRÁFICO (igual que antes)
+// GRÁFICO
 function actualizarGrafico(data){
 
   const empresas = ordenEmpresas.map(e => limpiarTexto(e));
