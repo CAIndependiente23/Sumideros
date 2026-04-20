@@ -11,8 +11,7 @@
 body {
   font-family: Arial, sans-serif;
   margin: 20px;
-  /* Fondo amarillo sólido */
-  background-color: #FFD700; 
+  background-color: #FFD700; /* Fondo Amarillo */
 }
 
 .card {
@@ -38,8 +37,7 @@ table {
 th, td {
   border: 1px solid #ccc;
   padding: 8px;
-  /* Centrado de todos los datos de la tabla */
-  text-align: center; 
+  text-align: center; /* Centrado de datos */
 }
 
 th { 
@@ -118,10 +116,17 @@ const urlsPorMes = {
   "ABRIL": "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDbK_aejhn6ZyIviQSE/export?format=csv&gid=0"
 };
 
-// Columnas a eliminar/ocultar
+// LISTA DE COLUMNAS A OCULTAR
 const columnasAExcluir = [
-  "Ano", "Mes", "Dia", "A verificar", "N° Verificacion", 
-  "Fecha Verificion", "Verificador", "Mes de verificacion"
+  "Ano", 
+  "Mes", 
+  "Dia", 
+  "A verificar", 
+  "N° Verificacion", 
+  "Fecha Verificion", 
+  "Verificador", 
+  "Mes de verificacion",
+  "Mes de verificacion (OCULTAR)" // Añadida específicamente
 ];
 
 let mesActual = "ABRIL";
@@ -244,7 +249,7 @@ function generarTabla(data){
   t.innerHTML = ""; h.innerHTML = "";
   if (!data.length) return;
 
-  // Filtrar las llaves que no queremos mostrar
+  // Filtrar las columnas por nombre exacto
   const headersValidos = Object.keys(data[0]).filter(k => !columnasAExcluir.includes(k));
 
   headersValidos.forEach(k => { h.innerHTML += `<th>${k}</th>`; });
