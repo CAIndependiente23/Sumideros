@@ -13,9 +13,10 @@ body {
   margin: 20px;
   position: relative;
   z-index: 0;
+  background: transparent;
 }
 
-/* 🔥 FONDO TENUE */
+/* FONDO TENUE */
 body::before {
   content: "";
   position: fixed;
@@ -27,9 +28,9 @@ body::before {
   background-image: url("https://gcba.github.io/BAstrap7/images/headeryfooter.png");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 60%;
+  background-size: 70%;
 
-  opacity: 0.08;
+  opacity: 0.15;
   z-index: -1;
   pointer-events: none;
 }
@@ -48,7 +49,7 @@ body::before {
 table {
   border-collapse: collapse;
   width: 100%;
-  background: white; /* 🔥 mejora legibilidad */
+  background: white;
 }
 
 th, td {
@@ -114,7 +115,6 @@ th { background: #eee; }
 
 <script>
 
-// LINKS
 const urlsPorMes = {
   "ENERO": "https://docs.google.com/spreadsheets/d/1loohYDVKwKe86YL_F5FKgpomi9HJcnd8MUouRgCBS0Q/export?format=csv",
   "FEBRERO": "https://docs.google.com/spreadsheets/d/1PWL289FN7BRAF4Vcvs3hdxcvdCxP4Vyt0BniCpng4l8/export?format=csv",
@@ -129,7 +129,6 @@ let chart;
 
 const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
 
-// BOTONES
 const contMeses = document.getElementById("meses");
 
 ["GLOBAL", ...Object.keys(urlsPorMes)].forEach(mes => {
@@ -149,7 +148,6 @@ const contMeses = document.getElementById("meses");
   contMeses.appendChild(btn);
 });
 
-// LIMPIAR TEXTO
 function limpiarTexto(t){
   return String(t || "")
     .normalize("NFD")
@@ -157,7 +155,6 @@ function limpiarTexto(t){
     .trim();
 }
 
-// CARGAR DATOS
 function cargarDatos(mes){
 
   document.getElementById("resumen").innerHTML = "Cargando...";
@@ -221,13 +218,9 @@ function cargarDatos(mes){
 
     datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
     actualizarVista();
-  })
-  .catch(() => {
-    document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
   });
 }
 
-// FILTROS
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
@@ -245,7 +238,6 @@ document.getElementById("buscadorAltura").addEventListener("input", () => {
   timeout = setTimeout(actualizarVista, 250);
 });
 
-// VISTA
 function actualizarVista(){
 
   let data = datosGlobal;
@@ -276,8 +268,6 @@ function actualizarVista(){
   generarTabla(data.slice(0, 100));
   actualizarGrafico(data);
 }
-
-// (resto igual)
 
 function generarResumen(data){
   const r = {};
@@ -324,8 +314,7 @@ function generarResumen(data){
       🟢 Limpios: ${limpios}<br>
       🔴 Cod. 28: ${c28}<br>
       📍 Visitas: ${visitas}<br>
-      📋 Pliego: ${pliego}<br>
-      📈 Avance: ${avance.toFixed(1)}%<br>
+      ${mesActual !== "GLOBAL" ? `📋 Pliego: ${pliego}<br>📈 Avance: ${avance.toFixed(1)}%<br>` : ""}
       ⚠️ % Cod. 28: ${pCod28.toFixed(1)}%
     </div>`;
   });
@@ -406,10 +395,9 @@ function actualizarGrafico(data){
   });
 }
 
-// INICIO
 cargarDatos(mesActual);
 
 </script>
 
 </body>
-</html
+</html>
