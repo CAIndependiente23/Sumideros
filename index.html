@@ -9,71 +9,63 @@
 
 <style>
 body {
-  font-family: Arial;
+  font-family: Arial, sans-serif;
   margin: 20px;
-  position: relative;
-  z-index: 0;
-  /* Fondo blanco sutil para proteger la legibilidad del texto */
-  background: rgba(255, 255, 255, 0.7);
-  min-height: 100vh;
-}
-
-/* FONDO MODIFICADO (MÁS VISIBLE) */
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-
-  background-image: url("https://gcba.github.io/BAstrap7/images/headeryfooter.png");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 70%;
-
-  /* Opacidad aumentada de 0.15 a 0.40 */
-  opacity: 0.40;
-  z-index: -1;
-  pointer-events: none;
+  /* Fondo amarillo sólido */
+  background-color: #FFD700; 
 }
 
 .card {
   display: inline-block;
-  padding: 10px;
+  padding: 15px;
   margin: 5px;
   border-radius: 8px;
-  background: #f0f0f0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Agregado para que resalten sobre el fondo */
+  background: white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  text-align: center;
 }
 
-.ok { background: #c8f7c5; }
-.bad { background: #f7c5c5; }
+.ok { border-left: 10px solid #2ecc71; }
+.bad { border-left: 10px solid #e74c3c; }
 
 table {
   border-collapse: collapse;
   width: 100%;
   background: white;
+  margin-top: 15px;
 }
 
 th, td {
   border: 1px solid #ccc;
-  padding: 5px;
+  padding: 8px;
+  /* Centrado de todos los datos de la tabla */
+  text-align: center; 
 }
 
-th { background: #eee; }
+th { 
+  background: #333; 
+  color: white;
+}
 
 .boton-mes {
-  padding: 8px 12px;
+  padding: 8px 15px;
   margin-right: 5px;
   border: none;
   cursor: pointer;
   border-radius: 6px;
+  background: #eee;
 }
 
 .activo {
-  background: #333;
+  background: #000;
   color: white;
+}
+
+input, select {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  margin-bottom: 10px;
 }
 </style>
 </head>
@@ -87,7 +79,7 @@ th { background: #eee; }
 
 <br>
 
-<label>Filtrar por empresa:</label>
+<label><b>Filtrar por empresa:</b></label><br>
 <select id="filtroEmpresa">
   <option value="">Todas</option>
   <option value="UTE">UTE</option>
@@ -97,14 +89,12 @@ th { background: #eee; }
   <option value="Alemarsa">Alemarsa</option>
 </select>
 
-<br><br>
-
+<br>
 <input type="text" id="buscador" placeholder="Buscar por calle...">
-<br><br>
 <input type="text" id="buscadorAltura" placeholder="Buscar por altura...">
 
 <h2>Indicador gráfico</h2>
-<div style="width:25vw; max-width:320px; background: white; padding: 10px; border-radius: 8px;">
+<div style="width:25vw; max-width:320px; background: white; padding: 15px; border-radius: 8px;">
   <canvas id="grafico"></canvas>
 </div>
 
@@ -112,10 +102,12 @@ th { background: #eee; }
 <div id="resumen">Cargando...</div>
 
 <h2>Elementos</h2>
-<table>
-<thead><tr id="headers"></tr></thead>
-<tbody id="tabla"></tbody>
-</table>
+<div style="overflow-x: auto;">
+  <table>
+    <thead><tr id="headers"></tr></thead>
+    <tbody id="tabla"></tbody>
+  </table>
+</div>
 
 <script>
 
@@ -125,6 +117,12 @@ const urlsPorMes = {
   "MARZO": "https://docs.google.com/spreadsheets/d/1kn-haRJBsVdhUFRyDP1h3nfF3tGgf2JF1CRfw7WN0sY/export?format=csv",
   "ABRIL": "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDbK_aejhn6ZyIviQSE/export?format=csv&gid=0"
 };
+
+// Columnas a eliminar/ocultar
+const columnasAExcluir = [
+  "Ano", "Mes", "Dia", "A verificar", "N° Verificacion", 
+  "Fecha Verificion", "Verificador", "Mes de verificacion"
+];
 
 let mesActual = "ABRIL";
 let datosGlobal = [];
@@ -139,87 +137,48 @@ const contMeses = document.getElementById("meses");
   const btn = document.createElement("button");
   btn.innerText = mes;
   btn.className = "boton-mes";
-
   if (mes === mesActual) btn.classList.add("activo");
-
   btn.onclick = () => {
     mesActual = mes;
     document.querySelectorAll(".boton-mes").forEach(b => b.classList.remove("activo"));
     btn.classList.add("activo");
     cargarDatos(mes);
   };
-
   contMeses.appendChild(btn);
 });
 
 function limpiarTexto(t){
-  return String(t || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
+  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
 
 function cargarDatos(mes){
-
   document.getElementById("resumen").innerHTML = "Cargando...";
-
   if (mes === "GLOBAL") {
-
     const promesas = Object.values(urlsPorMes).map(url =>
-      fetch(url)
-        .then(r => r.text())
-        .then(csv => Papa.parse(csv, {
-          header: true,
-          skipEmptyLines: true
-        }).data)
+      fetch(url).then(r => r.text()).then(csv => Papa.parse(csv, {header: true, skipEmptyLines: true}).data)
     );
-
-    Promise.all(promesas)
-    .then(resultados => {
-
+    Promise.all(promesas).then(resultados => {
       let combinado = [];
-
       resultados.forEach(data => {
         const limpio = data.map(row => {
           const obj = {};
-          Object.keys(row).forEach(k => {
-            obj[limpiarTexto(k)] = row[k];
-          });
+          Object.keys(row).forEach(k => { obj[limpiarTexto(k)] = row[k]; });
           return obj;
         });
-
-        combinado = combinado.concat(
-          limpio.filter(d => d && Object.keys(d).length > 1)
-        );
+        combinado = combinado.concat(limpio.filter(d => d && Object.keys(d).length > 1));
       });
-
       datosGlobal = combinado;
       actualizarVista();
-    })
-    .catch(() => {
-      document.getElementById("resumen").innerHTML = "❌ Error cargando datos";
     });
-
     return;
   }
 
-  fetch(urlsPorMes[mes])
-  .then(r => r.text())
-  .then(csv => {
-
-    const parsed = Papa.parse(csv, {
-      header: true,
-      skipEmptyLines: true
-    });
-
-    const data = parsed.data.map(row => {
+  fetch(urlsPorMes[mes]).then(r => r.text()).then(csv => {
+    const data = Papa.parse(csv, {header: true, skipEmptyLines: true}).data.map(row => {
       const limpio = {};
-      Object.keys(row).forEach(k => {
-        limpio[limpiarTexto(k)] = row[k];
-      });
+      Object.keys(row).forEach(k => { limpio[limpiarTexto(k)] = row[k]; });
       return limpio;
     });
-
     datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
     actualizarVista();
   });
@@ -231,42 +190,22 @@ document.getElementById("filtroEmpresa").addEventListener("change", e => {
 });
 
 let timeout;
-
-document.getElementById("buscador").addEventListener("input", () => {
-  clearTimeout(timeout);
-  timeout = setTimeout(actualizarVista, 250);
-});
-
-document.getElementById("buscadorAltura").addEventListener("input", () => {
-  clearTimeout(timeout);
-  timeout = setTimeout(actualizarVista, 250);
+[ "buscador", "buscadorAltura" ].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(actualizarVista, 250);
+  });
 });
 
 function actualizarVista(){
-
   let data = datosGlobal;
+  if (empresaActual) data = data.filter(d => limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual));
+  
+  const txtC = limpiarTexto(document.getElementById("buscador").value).toLowerCase();
+  if (txtC) data = data.filter(d => limpiarTexto(d["Calle"]).toLowerCase().includes(txtC));
 
-  if (empresaActual) {
-    data = data.filter(d =>
-      limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual)
-    );
-  }
-
-  const texto = limpiarTexto(document.getElementById("buscador").value);
-  if (texto) {
-    data = data.filter(d =>
-      limpiarTexto(d["Calle"]).toLowerCase().includes(texto.toLowerCase())
-    );
-  }
-
-  const altura = limpiarTexto(document.getElementById("buscadorAltura").value);
-  if (altura) {
-    data = data.filter(d =>
-      limpiarTexto(d["Altura"] || d["Altura Calle"] || "")
-        .toLowerCase()
-        .includes(altura.toLowerCase())
-    );
-  }
+  const txtA = limpiarTexto(document.getElementById("buscadorAltura").value).toLowerCase();
+  if (txtA) data = data.filter(d => limpiarTexto(d["Altura"] || d["Altura Calle"] || "").toLowerCase().includes(txtA));
 
   generarResumen(data);
   generarTabla(data.slice(0, 100));
@@ -275,132 +214,68 @@ function actualizarVista(){
 
 function generarResumen(data){
   const r = {};
-
-  const pliegos = {
-    "UTE": 8211,
-    "RC": 7028,
-    "Automat": 5623,
-    "DASA": 5357,
-    "Alemarsa": 3249
-  };
-
+  const pliegos = { "UTE": 8211, "RC": 7028, "Automat": 5623, "DASA": 5357, "Alemarsa": 3249 };
   data.forEach(d => {
     const emp = limpiarTexto(d["Empresa"]);
     const est = limpiarTexto(d["Estado Sumidero"]);
-
     if (!emp) return;
-
     if (!r[emp]) r[emp] = { limpios: 0, c28: 0 };
-
     if (est === "Limpio") r[emp].limpios++;
     if (est === "Cod. 28") r[emp].c28++;
   });
 
   let html = "";
-
   ordenEmpresas.forEach(emp => {
     const key = limpiarTexto(emp);
     if (!r[key]) return;
-
-    const limpios = r[key].limpios;
-    const c28 = r[key].c28;
+    const {limpios, c28} = r[key];
     const visitas = limpios + c28;
     const pliego = pliegos[emp] || 0;
-
     const avance = pliego ? (limpios / pliego) * 100 : 0;
     const pCod28 = visitas ? (c28 / visitas) * 100 : 0;
-
-    const cls = avance >= 80 ? "ok" : "bad";
-
-    html += `
-    <div class="card ${cls}">
-      <b>${emp}</b><br><br>
-      🟢 Limpios: ${limpios}<br>
-      🔴 Cod. 28: ${c28}<br>
-      📍 Visitas: ${visitas}<br>
-      ${mesActual !== "GLOBAL" ? `📋 Pliego: ${pliego}<br>📈 Avance: ${avance.toFixed(1)}%<br>` : ""}
-      ⚠️ % Cod. 28: ${pCod28.toFixed(1)}%
-    </div>`;
+    html += `<div class="card ${avance >= 80 ? 'ok' : 'bad'}"><b>${emp}</b><br><br>🟢 Limpios: ${limpios}<br>🔴 Cod. 28: ${c28}<br>📍 Visitas: ${visitas}<br>${mesActual !== "GLOBAL" ? `📋 Pliego: ${pliego}<br>📈 Avance: ${avance.toFixed(1)}%<br>` : ""}⚠️ % Cod. 28: ${pCod28.toFixed(1)}%</div>`;
   });
-
   document.getElementById("resumen").innerHTML = html;
 }
 
 function generarTabla(data){
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
-
-  t.innerHTML = "";
-  h.innerHTML = "";
-
+  t.innerHTML = ""; h.innerHTML = "";
   if (!data.length) return;
 
-  Object.keys(data[0]).forEach(k => {
-    h.innerHTML += `<th>${k}</th>`;
-  });
+  // Filtrar las llaves que no queremos mostrar
+  const headersValidos = Object.keys(data[0]).filter(k => !columnasAExcluir.includes(k));
+
+  headersValidos.forEach(k => { h.innerHTML += `<th>${k}</th>`; });
 
   data.forEach(d => {
     let row = "<tr>";
-    Object.values(d).forEach(v => row += `<td>${v}</td>`);
+    headersValidos.forEach(k => { row += `<td>${d[k] || ""}</td>`; });
     row += "</tr>";
     t.innerHTML += row;
   });
 }
 
 function actualizarGrafico(data){
-
   const empresas = ordenEmpresas.map(e => limpiarTexto(e));
-
-  let labels = [];
-  let limpios = [];
-  let cod28 = [];
-
+  let labels = [], limpios = [], cod28 = [];
   empresas.forEach(emp => {
-
-    let subset = data.filter(d =>
-      limpiarTexto(d["Empresa"]) === emp
-    );
-
     if (empresaActual && limpiarTexto(empresaActual) !== emp) return;
-
-    const l = subset.filter(d =>
-      limpiarTexto(d["Estado Sumidero"]) === "Limpio"
-    ).length;
-
-    const c = subset.filter(d =>
-      limpiarTexto(d["Estado Sumidero"]) === "Cod. 28"
-    ).length;
-
+    let subset = data.filter(d => limpiarTexto(d["Empresa"]) === emp);
     labels.push(emp);
-    limpios.push(l);
-    cod28.push(c);
+    limpios.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"]) === "Limpio").length);
+    cod28.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"]) === "Cod. 28").length);
   });
-
-  const ctx = document.getElementById("grafico").getContext("2d");
-
   if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
+  chart = new Chart(document.getElementById("grafico").getContext("2d"), {
     type: "bar",
-    data: {
-      labels,
-      datasets: [
-        { label: "Limpios", data: limpios, backgroundColor: "green", stack: "s" },
-        { label: "Cod. 28", data: cod28, backgroundColor: "red", stack: "s" }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked: true },
-        y: { stacked: true }
-      }
-    }
+    data: { labels, datasets: [ { label: "Limpios", data: limpios, backgroundColor: "green", stack: "s" }, { label: "Cod. 28", data: cod28, backgroundColor: "red", stack: "s" } ] },
+    options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
   });
 }
 
 cargarDatos(mesActual);
-
 </script>
 
 </body>
