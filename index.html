@@ -8,7 +8,31 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { font-family: Arial; margin: 20px; }
+body {
+  font-family: Arial;
+  margin: 20px;
+  position: relative;
+  z-index: 0;
+}
+
+/* 🔥 FONDO TENUE */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  background-image: url("https://gcba.github.io/BAstrap7/images/headeryfooter.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 60%;
+
+  opacity: 0.08;
+  z-index: -1;
+  pointer-events: none;
+}
 
 .card {
   display: inline-block;
@@ -24,6 +48,7 @@ body { font-family: Arial; margin: 20px; }
 table {
   border-collapse: collapse;
   width: 100%;
+  background: white; /* 🔥 mejora legibilidad */
 }
 
 th, td {
@@ -225,14 +250,12 @@ function actualizarVista(){
 
   let data = datosGlobal;
 
-  // filtro empresa
   if (empresaActual) {
     data = data.filter(d =>
       limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual)
     );
   }
 
-  // filtro calle
   const texto = limpiarTexto(document.getElementById("buscador").value);
   if (texto) {
     data = data.filter(d =>
@@ -240,7 +263,6 @@ function actualizarVista(){
     );
   }
 
-  // 🔥 NUEVO FILTRO ALTURA
   const altura = limpiarTexto(document.getElementById("buscadorAltura").value);
   if (altura) {
     data = data.filter(d =>
@@ -255,9 +277,7 @@ function actualizarVista(){
   actualizarGrafico(data);
 }
 
-// RESTO DEL CÓDIGO IGUAL ↓↓↓
-
-// (no cambia nada más)
+// (resto igual)
 
 function generarResumen(data){
   const r = {};
@@ -392,4 +412,4 @@ cargarDatos(mesActual);
 </script>
 
 </body>
-</html>
+</html
