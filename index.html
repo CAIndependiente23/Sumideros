@@ -13,10 +13,12 @@ body {
   margin: 20px;
   position: relative;
   z-index: 0;
-  background: transparent;
+  /* Fondo blanco sutil para proteger la legibilidad del texto */
+  background: rgba(255, 255, 255, 0.7);
+  min-height: 100vh;
 }
 
-/* FONDO TENUE */
+/* FONDO MODIFICADO (MÁS VISIBLE) */
 body::before {
   content: "";
   position: fixed;
@@ -30,7 +32,8 @@ body::before {
   background-position: center;
   background-size: 70%;
 
-  opacity: 0.15;
+  /* Opacidad aumentada de 0.15 a 0.40 */
+  opacity: 0.40;
   z-index: -1;
   pointer-events: none;
 }
@@ -41,6 +44,7 @@ body::before {
   margin: 5px;
   border-radius: 8px;
   background: #f0f0f0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Agregado para que resalten sobre el fondo */
 }
 
 .ok { background: #c8f7c5; }
@@ -100,7 +104,7 @@ th { background: #eee; }
 <input type="text" id="buscadorAltura" placeholder="Buscar por altura...">
 
 <h2>Indicador gráfico</h2>
-<div style="width:25vw; max-width:320px;">
+<div style="width:25vw; max-width:320px; background: white; padding: 10px; border-radius: 8px;">
   <canvas id="grafico"></canvas>
 </div>
 
