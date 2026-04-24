@@ -7,11 +7,15 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<!-- MAPA -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
 <style>
 body {
   font-family: Arial, sans-serif;
   margin: 20px;
-  background-color: #FFD700; /* Fondo Amarillo */
+  background-color: #FFD700;
 }
 
 .card {
@@ -37,7 +41,7 @@ table {
 th, td {
   border: 1px solid #ccc;
   padding: 8px;
-  text-align: center; /* Centrado de datos */
+  text-align: center;
 }
 
 th { 
@@ -96,6 +100,9 @@ input, select {
   <canvas id="grafico"></canvas>
 </div>
 
+<h2>Mapa de Sumideros</h2>
+<div id="mapa" style="height: 400px; width: 100%; border-radius: 8px; margin-bottom:20px;"></div>
+
 <h2>Resumen por empresa</h2>
 <div id="resumen">Cargando...</div>
 
@@ -109,6 +116,8 @@ input, select {
 
 <script>
 
+// ================= DATOS =================
+
 const urlsPorMes = {
   "ENERO": "https://docs.google.com/spreadsheets/d/1loohYDVKwKe86YL_F5FKgpomi9HJcnd8MUouRgCBS0Q/export?format=csv",
   "FEBRERO": "https://docs.google.com/spreadsheets/d/1PWL289FN7BRAF4Vcvs3hdxcvdCxP4Vyt0BniCpng4l8/export?format=csv",
@@ -116,17 +125,13 @@ const urlsPorMes = {
   "ABRIL": "https://docs.google.com/spreadsheets/d/15SPpa4npSejN88JwsCX8hou7yDbK_aejhn6ZyIviQSE/export?format=csv&gid=0"
 };
 
-// LISTA DE COLUMNAS A OCULTAR
+const urlCoordenadas = "https://docs.google.com/spreadsheets/d/1YAXWdz3R7XSSoy0eamS2nSKrj57bhQST/export?format=csv&gid=2083575138";
+
+// ================= CONFIG =================
+
 const columnasAExcluir = [
-  "Ano", 
-  "Mes", 
-  "Dia", 
-  "A verificar", 
-  "N° Verificacion", 
-  "Fecha Verificion", 
-  "Verificador", 
-  "Mes de verificacion",
-  "Mes de verificacion (OCULTAR)" // Añadida específicamente
+  "Ano","Mes","Dia","A verificar","N° Verificacion","Fecha Verificion",
+  "Verificador","Mes de verificacion","Mes de verificacion (OCULTAR)"
 ];
 
 let mesActual = "ABRIL";
@@ -134,7 +139,110 @@ let datosGlobal = [];
 let empresaActual = "";
 let chart;
 
-const ordenEmpresas = ["UTE", "RC", "Automat", "DASA", "Alemarsa"];
+const ordenEmpresas = ["UTE","RC","Automat","DASA","Alemarsa"];
+
+// MAPA
+let mapa;
+let marcadoresLayer;
+let coordenadas = {};
+
+// ================= INIT =================
+
+function limpiarTexto(t){
+  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+// ================= MAPA =================
+
+function cargarCoordenadas(){
+  return fetch(urlCoordenadas)
+    .then(r => r.text())
+    .then(csv => {
+      const data = Papa.parse(csv, {header:true}).data;
+      data.forEach(d => {
+        const key = limpiarTexto(d["n_sum"]);
+        if (key) {
+          coordenadas[key] = {
+            lat: parseFloat(d["lat"]),
+            lon: parseFloat(d["lon"])
+          };
+        }
+      });
+    });
+}
+
+function inicializarMapa(){
+  mapa = L.map('mapa').setView([-34.60, -58.38], 12);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(mapa);
+
+  marcadoresLayer = L.layerGroup().addTo(mapa);
+}
+
+function actualizarMapa(data){
+  if (!mapa) return;
+
+  marcadoresLayer.clearLayers();
+
+  data.forEach(d => {
+    const id = limpiarTexto(d["N° Sumidero"]);
+    const coord = coordenadas[id];
+
+    if (coord && !isNaN(coord.lat) && !isNaN(coord.lon)) {
+
+      const estado = limpiarTexto(d["Estado Sumidero"]);
+      const color = estado === "Limpio" ? "green" : "red";
+
+      const marker = L.circleMarker([coord.lat, coord.lon], {
+        radius: 6,
+        color: color,
+        fillOpacity: 0.8
+      });
+
+      marker.bindPopup(`
+        <b>${id}</b><br>
+        Estado: ${estado}<br>
+        Empresa: ${d["Empresa"] || ""}
+      `);
+
+      marcadoresLayer.addLayer(marker);
+    }
+  });
+}
+
+// ================= DATOS =================
+
+function cargarDatos(mes){
+  document.getElementById("resumen").innerHTML = "Cargando...";
+
+  if (mes === "GLOBAL") {
+    const promesas = Object.values(urlsPorMes).map(url =>
+      fetch(url).then(r => r.text()).then(csv => Papa.parse(csv,{header:true}).data)
+    );
+
+    Promise.all(promesas).then(resultados => {
+      let combinado = [];
+      resultados.forEach(data => {
+        combinado = combinado.concat(data);
+      });
+      datosGlobal = combinado.filter(d => d && Object.keys(d).length > 1);
+      actualizarVista();
+    });
+    return;
+  }
+
+  fetch(urlsPorMes[mes])
+    .then(r => r.text())
+    .then(csv => {
+      const data = Papa.parse(csv,{header:true}).data;
+      datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
+      actualizarVista();
+    });
+}
+
+// ================= UI =================
 
 const contMeses = document.getElementById("meses");
 
@@ -143,144 +251,152 @@ const contMeses = document.getElementById("meses");
   btn.innerText = mes;
   btn.className = "boton-mes";
   if (mes === mesActual) btn.classList.add("activo");
+
   btn.onclick = () => {
     mesActual = mes;
     document.querySelectorAll(".boton-mes").forEach(b => b.classList.remove("activo"));
     btn.classList.add("activo");
     cargarDatos(mes);
   };
+
   contMeses.appendChild(btn);
 });
-
-function limpiarTexto(t){
-  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-}
-
-function cargarDatos(mes){
-  document.getElementById("resumen").innerHTML = "Cargando...";
-  if (mes === "GLOBAL") {
-    const promesas = Object.values(urlsPorMes).map(url =>
-      fetch(url).then(r => r.text()).then(csv => Papa.parse(csv, {header: true, skipEmptyLines: true}).data)
-    );
-    Promise.all(promesas).then(resultados => {
-      let combinado = [];
-      resultados.forEach(data => {
-        const limpio = data.map(row => {
-          const obj = {};
-          Object.keys(row).forEach(k => { obj[limpiarTexto(k)] = row[k]; });
-          return obj;
-        });
-        combinado = combinado.concat(limpio.filter(d => d && Object.keys(d).length > 1));
-      });
-      datosGlobal = combinado;
-      actualizarVista();
-    });
-    return;
-  }
-
-  fetch(urlsPorMes[mes]).then(r => r.text()).then(csv => {
-    const data = Papa.parse(csv, {header: true, skipEmptyLines: true}).data.map(row => {
-      const limpio = {};
-      Object.keys(row).forEach(k => { limpio[limpiarTexto(k)] = row[k]; });
-      return limpio;
-    });
-    datosGlobal = data.filter(d => d && Object.keys(d).length > 1);
-    actualizarVista();
-  });
-}
 
 document.getElementById("filtroEmpresa").addEventListener("change", e => {
   empresaActual = e.target.value;
   actualizarVista();
 });
 
-let timeout;
-[ "buscador", "buscadorAltura" ].forEach(id => {
+["buscador","buscadorAltura"].forEach(id => {
   document.getElementById(id).addEventListener("input", () => {
-    clearTimeout(timeout);
-    timeout = setTimeout(actualizarVista, 250);
+    actualizarVista();
   });
 });
 
+// ================= VISTA =================
+
 function actualizarVista(){
+
   let data = datosGlobal;
-  if (empresaActual) data = data.filter(d => limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual));
-  
+
+  if (empresaActual)
+    data = data.filter(d => limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual));
+
   const txtC = limpiarTexto(document.getElementById("buscador").value).toLowerCase();
-  if (txtC) data = data.filter(d => limpiarTexto(d["Calle"]).toLowerCase().includes(txtC));
+  if (txtC)
+    data = data.filter(d => limpiarTexto(d["Calle"]).toLowerCase().includes(txtC));
 
   const txtA = limpiarTexto(document.getElementById("buscadorAltura").value).toLowerCase();
-  if (txtA) data = data.filter(d => limpiarTexto(d["Altura"] || d["Altura Calle"] || "").toLowerCase().includes(txtA));
+  if (txtA)
+    data = data.filter(d => limpiarTexto(d["Altura"] || "").toLowerCase().includes(txtA));
 
   generarResumen(data);
-  generarTabla(data.slice(0, 100));
+  generarTabla(data.slice(0,100));
   actualizarGrafico(data);
+  actualizarMapa(data);
 }
+
+// ================= RESUMEN =================
 
 function generarResumen(data){
   const r = {};
-  const pliegos = { "UTE": 8211, "RC": 7028, "Automat": 5623, "DASA": 5357, "Alemarsa": 3249 };
+
   data.forEach(d => {
     const emp = limpiarTexto(d["Empresa"]);
     const est = limpiarTexto(d["Estado Sumidero"]);
+
     if (!emp) return;
-    if (!r[emp]) r[emp] = { limpios: 0, c28: 0 };
+
+    if (!r[emp]) r[emp] = {limpios:0,c28:0};
+
     if (est === "Limpio") r[emp].limpios++;
     if (est === "Cod. 28") r[emp].c28++;
   });
 
   let html = "";
+
   ordenEmpresas.forEach(emp => {
     const key = limpiarTexto(emp);
     if (!r[key]) return;
-    const {limpios, c28} = r[key];
+
+    const {limpios,c28} = r[key];
     const visitas = limpios + c28;
-    const pliego = pliegos[emp] || 0;
-    const avance = pliego ? (limpios / pliego) * 100 : 0;
-    const pCod28 = visitas ? (c28 / visitas) * 100 : 0;
-    html += `<div class="card ${avance >= 80 ? 'ok' : 'bad'}"><b>${emp}</b><br><br>🟢 Limpios: ${limpios}<br>🔴 Cod. 28: ${c28}<br>📍 Visitas: ${visitas}<br>${mesActual !== "GLOBAL" ? `📋 Pliego: ${pliego}<br>📈 Avance: ${avance.toFixed(1)}%<br>` : ""}⚠️ % Cod. 28: ${pCod28.toFixed(1)}%</div>`;
+
+    html += `<div class="card">
+      <b>${emp}</b><br><br>
+      🟢 ${limpios}<br>
+      🔴 ${c28}<br>
+      📍 ${visitas}
+    </div>`;
   });
+
   document.getElementById("resumen").innerHTML = html;
 }
+
+// ================= TABLA =================
 
 function generarTabla(data){
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
-  t.innerHTML = ""; h.innerHTML = "";
+
+  t.innerHTML = "";
+  h.innerHTML = "";
+
   if (!data.length) return;
 
-  // Filtrar las columnas por nombre exacto
   const headersValidos = Object.keys(data[0]).filter(k => !columnasAExcluir.includes(k));
 
-  headersValidos.forEach(k => { h.innerHTML += `<th>${k}</th>`; });
+  headersValidos.forEach(k => h.innerHTML += `<th>${k}</th>`);
 
   data.forEach(d => {
     let row = "<tr>";
-    headersValidos.forEach(k => { row += `<td>${d[k] || ""}</td>`; });
+    headersValidos.forEach(k => row += `<td>${d[k] || ""}</td>`);
     row += "</tr>";
     t.innerHTML += row;
   });
 }
 
+// ================= GRAFICO =================
+
 function actualizarGrafico(data){
-  const empresas = ordenEmpresas.map(e => limpiarTexto(e));
-  let labels = [], limpios = [], cod28 = [];
-  empresas.forEach(emp => {
-    if (empresaActual && limpiarTexto(empresaActual) !== emp) return;
-    let subset = data.filter(d => limpiarTexto(d["Empresa"]) === emp);
+
+  const labels = [];
+  const limpios = [];
+  const cod28 = [];
+
+  ordenEmpresas.forEach(emp => {
+    const subset = data.filter(d => limpiarTexto(d["Empresa"]) === limpiarTexto(emp));
+
+    if (!subset.length) return;
+
     labels.push(emp);
-    limpios.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"]) === "Limpio").length);
-    cod28.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"]) === "Cod. 28").length);
+    limpios.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"])==="Limpio").length);
+    cod28.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"])==="Cod. 28").length);
   });
+
   if (chart) chart.destroy();
-  chart = new Chart(document.getElementById("grafico").getContext("2d"), {
+
+  chart = new Chart(document.getElementById("grafico"), {
     type: "bar",
-    data: { labels, datasets: [ { label: "Limpios", data: limpios, backgroundColor: "green", stack: "s" }, { label: "Cod. 28", data: cod28, backgroundColor: "red", stack: "s" } ] },
-    options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
+    data: {
+      labels,
+      datasets: [
+        {label:"Limpios", data: limpios, backgroundColor:"green"},
+        {label:"Cod.28", data: cod28, backgroundColor:"red"}
+      ]
+    }
   });
 }
 
-cargarDatos(mesActual);
+// ================= START =================
+
+Promise.all([
+  cargarCoordenadas()
+]).then(() => {
+  inicializarMapa();
+  cargarDatos(mesActual);
+});
+
 </script>
 
 </body>
