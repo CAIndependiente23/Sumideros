@@ -90,6 +90,7 @@ input, select {
 <br>
 <input type="text" id="buscador" placeholder="Buscar por calle...">
 <input type="text" id="buscadorAltura" placeholder="Buscar por altura...">
+<input type="text" id="buscadorSumidero" placeholder="Buscar por N° Sumidero...">
 
 <h2>Indicador gráfico</h2>
 <div style="width:25vw; max-width:320px; background: white; padding: 15px; border-radius: 8px;">
@@ -130,7 +131,7 @@ const columnasAExcluir = [
   "Fecha Verificion", 
   "Verificador", 
   "Mes de verificacion",
-  "Mes de verificacion (OCULTAR)" // Añadida específicamente
+  "Mes de verificacion (OCULTAR)"
 ];
 
 let mesActual = "ABRIL";
@@ -199,7 +200,8 @@ document.getElementById("filtroEmpresa").addEventListener("change", e => {
 });
 
 let timeout;
-[ "buscador", "buscadorAltura" ].forEach(id => {
+
+["buscador", "buscadorAltura", "buscadorSumidero"].forEach(id => {
   document.getElementById(id).addEventListener("input", () => {
     clearTimeout(timeout);
     timeout = setTimeout(actualizarVista, 250);
@@ -208,13 +210,47 @@ let timeout;
 
 function actualizarVista(){
   let data = datosGlobal;
-  if (empresaActual) data = data.filter(d => limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual));
-  
-  const txtC = limpiarTexto(document.getElementById("buscador").value).toLowerCase();
-  if (txtC) data = data.filter(d => limpiarTexto(d["Calle"]).toLowerCase().includes(txtC));
 
-  const txtA = limpiarTexto(document.getElementById("buscadorAltura").value).toLowerCase();
-  if (txtA) data = data.filter(d => limpiarTexto(d["Altura"] || d["Altura Calle"] || "").toLowerCase().includes(txtA));
+  if (empresaActual) {
+    data = data.filter(d =>
+      limpiarTexto(d["Empresa"]) === limpiarTexto(empresaActual)
+    );
+  }
+  
+  const txtC = limpiarTexto(
+    document.getElementById("buscador").value
+  ).toLowerCase();
+
+  if (txtC) {
+    data = data.filter(d =>
+      limpiarTexto(d["Calle"]).toLowerCase().includes(txtC)
+    );
+  }
+
+  const txtA = limpiarTexto(
+    document.getElementById("buscadorAltura").value
+  ).toLowerCase();
+
+  if (txtA) {
+    data = data.filter(d =>
+      limpiarTexto(d["Altura"] || d["Altura Calle"] || "")
+        .toLowerCase()
+        .includes(txtA)
+    );
+  }
+
+  // NUEVO FILTRO: N° SUMIDERO
+  const txtS = limpiarTexto(
+    document.getElementById("buscadorSumidero").value
+  ).toLowerCase();
+
+  if (txtS) {
+    data = data.filter(d =>
+      limpiarTexto(d["N° Sumidero"])
+        .toLowerCase()
+        .includes(txtS)
+    );
+  }
 
   generarResumen(data);
   generarTabla(data.slice(0, 100));
@@ -223,44 +259,86 @@ function actualizarVista(){
 
 function generarResumen(data){
   const r = {};
-  const pliegos = { "UTE": 8211, "RC": 7028, "Automat": 5623, "DASA": 5357, "Alemarsa": 3249 };
+  const pliegos = {
+    "UTE": 8211,
+    "RC": 7028,
+    "Automat": 5623,
+    "DASA": 5357,
+    "Alemarsa": 3249
+  };
+
   data.forEach(d => {
     const emp = limpiarTexto(d["Empresa"]);
     const est = limpiarTexto(d["Estado Sumidero"]);
+
     if (!emp) return;
-    if (!r[emp]) r[emp] = { limpios: 0, c28: 0 };
+
+    if (!r[emp]) {
+      r[emp] = {
+        limpios: 0,
+        c28: 0
+      };
+    }
+
     if (est === "Limpio") r[emp].limpios++;
     if (est === "Cod. 28") r[emp].c28++;
   });
 
   let html = "";
+
   ordenEmpresas.forEach(emp => {
     const key = limpiarTexto(emp);
+
     if (!r[key]) return;
+
     const {limpios, c28} = r[key];
     const visitas = limpios + c28;
     const pliego = pliegos[emp] || 0;
     const avance = pliego ? (limpios / pliego) * 100 : 0;
     const pCod28 = visitas ? (c28 / visitas) * 100 : 0;
-    html += `<div class="card ${avance >= 80 ? 'ok' : 'bad'}"><b>${emp}</b><br><br>🟢 Limpios: ${limpios}<br>🔴 Cod. 28: ${c28}<br>📍 Visitas: ${visitas}<br>${mesActual !== "GLOBAL" ? `📋 Pliego: ${pliego}<br>📈 Avance: ${avance.toFixed(1)}%<br>` : ""}⚠️ % Cod. 28: ${pCod28.toFixed(1)}%</div>`;
+
+    html += `
+      <div class="card ${avance >= 80 ? 'ok' : 'bad'}">
+        <b>${emp}</b><br><br>
+        🟢 Limpios: ${limpios}<br>
+        🔴 Cod. 28: ${c28}<br>
+        📍 Visitas: ${visitas}<br>
+        ${mesActual !== "GLOBAL" ? `
+          📋 Pliego: ${pliego}<br>
+          📈 Avance: ${avance.toFixed(1)}%<br>
+        ` : ""}
+        ⚠️ % Cod. 28: ${pCod28.toFixed(1)}%
+      </div>
+    `;
   });
+
   document.getElementById("resumen").innerHTML = html;
 }
 
 function generarTabla(data){
   const t = document.getElementById("tabla");
   const h = document.getElementById("headers");
-  t.innerHTML = ""; h.innerHTML = "";
+
+  t.innerHTML = "";
+  h.innerHTML = "";
+
   if (!data.length) return;
 
   // Filtrar las columnas por nombre exacto
-  const headersValidos = Object.keys(data[0]).filter(k => !columnasAExcluir.includes(k));
+  const headersValidos = Object.keys(data[0])
+    .filter(k => !columnasAExcluir.includes(k));
 
-  headersValidos.forEach(k => { h.innerHTML += `<th>${k}</th>`; });
+  headersValidos.forEach(k => {
+    h.innerHTML += `<th>${k}</th>`;
+  });
 
   data.forEach(d => {
     let row = "<tr>";
-    headersValidos.forEach(k => { row += `<td>${d[k] || ""}</td>`; });
+
+    headersValidos.forEach(k => {
+      row += `<td>${d[k] || ""}</td>`;
+    });
+
     row += "</tr>";
     t.innerHTML += row;
   });
@@ -269,22 +347,65 @@ function generarTabla(data){
 function actualizarGrafico(data){
   const empresas = ordenEmpresas.map(e => limpiarTexto(e));
   let labels = [], limpios = [], cod28 = [];
+
   empresas.forEach(emp => {
     if (empresaActual && limpiarTexto(empresaActual) !== emp) return;
-    let subset = data.filter(d => limpiarTexto(d["Empresa"]) === emp);
+
+    let subset = data.filter(d =>
+      limpiarTexto(d["Empresa"]) === emp
+    );
+
     labels.push(emp);
-    limpios.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"]) === "Limpio").length);
-    cod28.push(subset.filter(d => limpiarTexto(d["Estado Sumidero"]) === "Cod. 28").length);
+
+    limpios.push(
+      subset.filter(d =>
+        limpiarTexto(d["Estado Sumidero"]) === "Limpio"
+      ).length
+    );
+
+    cod28.push(
+      subset.filter(d =>
+        limpiarTexto(d["Estado Sumidero"]) === "Cod. 28"
+      ).length
+    );
   });
+
   if (chart) chart.destroy();
-  chart = new Chart(document.getElementById("grafico").getContext("2d"), {
-    type: "bar",
-    data: { labels, datasets: [ { label: "Limpios", data: limpios, backgroundColor: "green", stack: "s" }, { label: "Cod. 28", data: cod28, backgroundColor: "red", stack: "s" } ] },
-    options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
-  });
+
+  chart = new Chart(
+    document.getElementById("grafico").getContext("2d"),
+    {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Limpios",
+            data: limpios,
+            backgroundColor: "green",
+            stack: "s"
+          },
+          {
+            label: "Cod. 28",
+            data: cod28,
+            backgroundColor: "red",
+            stack: "s"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { stacked: true },
+          y: { stacked: true }
+        }
+      }
+    }
+  );
 }
 
 cargarDatos(mesActual);
+
 </script>
 
 </body>
